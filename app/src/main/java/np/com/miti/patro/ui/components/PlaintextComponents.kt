@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,7 +21,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import np.com.miti.patro.ui.theme.LocalMitiPalette
@@ -37,7 +37,7 @@ fun AsciiHorizontalRule(
     color: Color? = null
 ) {
     val palette = LocalMitiPalette.current
-    val ruleColor = color ?: palette.gridBorder
+    val ruleColor = color ?: palette.comment
     val line = buildString {
         append(edgeChar)
         repeat(96) { append(char) }
@@ -65,7 +65,7 @@ fun AsciiTableHorizontalBorder(
     color: Color? = null
 ) {
     val palette = LocalMitiPalette.current
-    val borderColor = color ?: palette.gridBorder
+    val borderColor = color ?: palette.comment
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -94,117 +94,92 @@ fun AsciiTableHorizontalBorder(
 }
 
 /**
- * Keep PlaintextDivider as an alias that renders literal `-------` lines so every divider
- * across the entire app uses plain text aesthetics.
- */
-@Composable
-fun PlaintextDivider(
-    modifier: Modifier = Modifier,
-    thickness: Dp = 1.dp,
-    color: Color? = null
-) {
-    AsciiHorizontalRule(modifier = modifier, color = color)
-}
-
-/**
- * Plaintext bracketed button, e.g. `[< PREV]`, `[TODAY]`, `[+ ADD]`, `[CFG]`.
- * Zero elevation, zero rounded corners, strict monospace typography.
- */
-@Composable
-fun PlaintextBracketButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    textColor: Color? = null,
-    backgroundColor: Color = Color.Transparent,
-    bold: Boolean = true
-) {
-    val palette = LocalMitiPalette.current
-    Box(
-        modifier = modifier
-            .background(backgroundColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = textColor ?: palette.accentCyan,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 12.sp
-        )
-    }
-}
-
-/**
- * Framed ASCII box with a top `+--- TITLE -------+` header rule and a bottom `+-------+` rule.
+ * Plaintext Sports-inspired box container framed by literal `+-- HEADER -------+` and `-------` lines.
  */
 @Composable
 fun PlaintextBox(
     modifier: Modifier = Modifier,
-    headerTitle: String? = null,
-    headerRight: String? = null,
-    content: @Composable () -> Unit
+    borderColor: Color = LocalMitiPalette.current.comment,
+    backgroundColor: Color = LocalMitiPalette.current.surface,
+    headerText: String? = null,
+    headerColor: Color = LocalMitiPalette.current.purple,
+    content: @Composable ColumnScope.() -> Unit
 ) {
     val palette = LocalMitiPalette.current
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(palette.surface)
+            .background(backgroundColor)
     ) {
-        if (headerTitle != null) {
+        if (!headerText.isNullOrBlank()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(palette.surfaceElevated)
+                    .background(palette.selection.copy(alpha = 0.45f))
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "+-- $headerTitle ",
-                        color = palette.accentPurple,
+                        text = "+-- $headerText ",
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
+                        color = headerColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (headerRight != null) {
-                        Text(
-                            text = " $headerRight --+",
-                            color = palette.comment,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    } else {
-                        Text(
-                            text = "------------------------------------------------+",
-                            color = palette.gridBorder,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Clip,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    Text(
+                        text = "--------------------------------------------------------+",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = borderColor,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                AsciiHorizontalRule()
+                AsciiHorizontalRule(color = borderColor)
             }
         } else {
-            AsciiHorizontalRule()
+            AsciiHorizontalRule(color = borderColor)
         }
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            content()
-        }
-        AsciiHorizontalRule()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            content = content
+        )
+        AsciiHorizontalRule(color = borderColor)
     }
+}
+
+/**
+ * Plaintext bracketed link/action control (e.g., "[+EVENT]", "[< PREV]", "[TODAY]").
+ */
+@Composable
+fun BracketButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = LocalMitiPalette.current.foreground,
+    isHighlighted: Boolean = false
+) {
+    val palette = LocalMitiPalette.current
+    Text(
+        text = text,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
+        fontSize = 12.sp,
+        color = color,
+        modifier = modifier
+            .background(if (isHighlighted) palette.selection else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 5.dp, vertical = 4.dp)
+    )
 }
 
 /**
@@ -216,13 +191,15 @@ fun PlaintextTextInput(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    isError: Boolean = false,
     singleLine: Boolean = true
 ) {
     val palette = LocalMitiPalette.current
+    val ruleColor = if (isError) palette.red else palette.comment
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(palette.surfaceElevated)
+            .background(palette.surface)
             .padding(top = 6.dp, start = 6.dp, end = 6.dp)
     ) {
         Row(
@@ -231,7 +208,7 @@ fun PlaintextTextInput(
         ) {
             Text(
                 text = "> ",
-                color = palette.accentPurple,
+                color = if (isError) palette.red else palette.purple,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
@@ -254,12 +231,12 @@ fun PlaintextTextInput(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp
                     ),
-                    cursorBrush = SolidColor(palette.accentPurple),
+                    cursorBrush = SolidColor(palette.purple),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
-        AsciiHorizontalRule(char = '-', edgeChar = '-')
+        AsciiHorizontalRule(char = '-', edgeChar = '-', color = ruleColor)
     }
 }
 
@@ -286,12 +263,14 @@ fun PlaintextToggleRow(
             text = label,
             color = palette.foreground,
             fontFamily = FontFamily.Monospace,
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f).padding(end = 8.dp)
+            fontSize = 12.sp,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
         )
         Text(
             text = if (checked) "[x]" else "[ ]",
-            color = if (checked) palette.accentGreen else palette.comment,
+            color = if (checked) palette.green else palette.comment,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp,

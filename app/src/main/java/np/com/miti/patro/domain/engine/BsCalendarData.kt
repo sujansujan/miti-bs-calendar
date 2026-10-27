@@ -44,6 +44,33 @@ object BsCalendarData {
         "आइतबार", "सोमबार", "मंगलबार", "बुधबार", "बिहीबार", "शुक्रबार", "शनिबार"
     )
 
+    val AD_MONTH_SHORT_EN = arrayOf(
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    )
+    val AD_MONTH_SHORT_NE = arrayOf(
+        "जन", "फेब्रु", "मार्च", "अप्रिल", "मे", "जुन",
+        "जुलाई", "अगस्ट", "सेप्टे", "अक्टो", "नोभे", "डिसे"
+    )
+
+    fun getAdMonthName(month1Based: Int, useDevanagari: Boolean): String {
+        val idx = (month1Based - 1).coerceIn(0, 11)
+        return if (useDevanagari) AD_MONTH_SHORT_NE[idx] else AD_MONTH_SHORT_EN[idx]
+    }
+
+    fun formatAdDate(adDate: LocalDate, useDevanagari: Boolean): String {
+        val y = formatNumber(adDate.year, useDevanagari)
+        val m = getAdMonthName(adDate.monthValue, useDevanagari)
+        val d = formatNumber(adDate.dayOfMonth, useDevanagari, padWidth = 2)
+        return "$y $m $d"
+    }
+
+    fun formatTime24h(hour: Int, minute: Int, useDevanagari: Boolean): String {
+        val h = formatNumber(hour, useDevanagari, padWidth = 2)
+        val m = formatNumber(minute, useDevanagari, padWidth = 2)
+        return "$h:$m"
+    }
+
     private val DAYS_PER_MONTH: Map<Int, IntArray> = mapOf(
         1970 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
         1971 to intArrayOf(31, 31, 32, 31, 32, 30, 30, 29, 30, 29, 30, 30),

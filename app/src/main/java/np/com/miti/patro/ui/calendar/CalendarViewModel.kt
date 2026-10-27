@@ -1,266 +1,280 @@
 package np.com.miti.patro.ui.calendar
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import np.com.miti.patro.data.local.AppDatabase
+import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.data.preferences.ThemeMode
-import np.com.miti.patro.data.preferences.UserPreferences
 import np.com.miti.patro.data.preferences.UserPreferencesRepository
+import np.com.miti.patro.data.preferences.UserSettings
 import np.com.miti.patro.data.repository.EventRepository
+import np.com.miti.patro.data.repository.ResolvedEventInstance
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
-import np.com.miti.patro.domain.engine.LunarTithiCalculator
-import np.com.miti.patro.domain.engine.NepaliHolidayCatalog
+import np.com.miti.patro.domain.engine.NepaliFestivals
+import np.com.miti.patro.domain.engine.TithiCalculator
+import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
-import np.com.miti.patro.domain.model.BsEvent
-import np.com.miti.patro.domain.model.DayCellInfo
 import np.com.miti.patro.domain.model.MissingDayStrategy
-import np.com.miti.patro.domain.model.MonthGridState
-import np.com.miti.patro.domain.model.ResolvedBsEvent
-import np.com.miti.patro.reminder.EventAlarmScheduler
+import np.com.miti.patro.reminder.ReminderScheduler
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.ui.theme.AppStrings
 import java.time.LocalDate
-import java.time.ZoneId
 
-data class CalendarUiState(
-    val todayBs: BsDate,
-    val selectedBsDate: BsDate,
-    val monthGrid: MonthGridState,
-    val preferences: UserPreferences,
-    val allEvents: List<BsEvent> = emptyList(),
-    val isAddEditDialogOpen: Boolean = false,
-    val editingEvent: BsEvent? = null,
-    val isYearMonthPickerOpen: Boolean = false,
+data class CalendarMonthUiState(
+    val visibleYear: Int,
+    val visibleMonth: Int,
+    val daysInMonth: Int,
+    val leadingEmptyCells: Int, // 0 = Sunday .. 6 = Saturday
+    val days: List<BsCalendarDay>,
+    val selectedDate: BsDate,
+    val selectedDayModel: BsCalendarDay?,
+    val todayBsDate: BsDate,
+    val adMonthSpanLabel: String,
+    val eventsByDay: Map<Int, List<ResolvedEventInstance>>,
+    val allEvents: List<EventEntity>,
+    val settings: UserSettings,
     val statusBannerMessage: String? = null
 )
 
-class CalendarViewModel(
-    private val appContext: Context,
-    private val eventRepository: EventRepository,
-    private val preferencesRepository: UserPreferencesRepository,
-    private val alarmScheduler: EventAlarmScheduler
-) : ViewModel() {
+class CalendarViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val nepalZone = ZoneId.of("Asia/Kathmandu")
-    private val initialTodayAd = LocalDate.now(nepalZone)
-    private val initialTodayBs = BsDateConverter.adToBs(initialTodayAd)
+    private val appContext = application.applicationContext
+    private val database = AppDatabase.getInstance(appContext)
+    private val eventRepository = EventRepository(database.eventDao())
+    private val prefsRepository = UserPreferencesRepository(appContext)
 
-    private val viewedYear = MutableStateFlow(initialTodayBs.year)
-    private val viewedMonth = MutableStateFlow(initialTodayBs.month)
-    private val selectedDate = MutableStateFlow(initialTodayBs)
-    private val dialogState = MutableStateFlow<Pair<Boolean, BsEvent?>>(false to null)
-    private val yearMonthPickerState = MutableStateFlow(false)
-    private val statusBanner = MutableStateFlow<String?>(null)
+    private val todayAd: LocalDate
+        get() = LocalDate.now()
 
-    private data class NavTuple(
-        val year: Int,
-        val month: Int,
-        val selected: BsDate,
-        val dialog: Pair<Boolean, BsEvent?>,
-        val pickerOpen: Boolean
-    )
+    private val initialTodayBs: BsDate = BsDateConverter.adToBs(LocalDate.now())
 
-    private val navFlow = combine(
-        viewedYear,
-        viewedMonth,
-        selectedDate,
-        dialogState,
-        yearMonthPickerState
-    ) { year, month, sel, dlg, picker ->
-        NavTuple(year, month, sel, dlg, picker)
-    }
+    private val _visibleYearMonth = MutableStateFlow(initialTodayBs.year to initialTodayBs.month)
+    private val _selectedDate = MutableStateFlow(initialTodayBs)
+    private val _statusBanner = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<CalendarUiState> = combine(
-        navFlow,
+    val uiState: StateFlow<CalendarMonthUiState> = combine(
+        _visibleYearMonth,
+        _selectedDate,
         eventRepository.allEventsFlow,
-        preferencesRepository.preferencesFlow,
-        statusBanner
-    ) { nav, events, prefs, banner ->
-        val todayAd = LocalDate.now(nepalZone)
-        val todayBs = BsDateConverter.adToBs(todayAd)
-        val grid = buildMonthGrid(
-            bsYear = nav.year,
-            bsMonth = nav.month,
-            todayBs = todayBs,
+        prefsRepository.settingsFlow,
+        _statusBanner
+    ) { (year, month), selected, events, settings, banner ->
+        buildMonthUiState(
+            year = year,
+            month = month,
+            selected = selected,
             allEvents = events,
-            nepaliScript = prefs.useNepaliScript
-        )
-        val safeSelected = if (nav.selected.year == nav.year && nav.selected.month == nav.month) {
-            val maxDay = BsCalendarData.getDaysInMonth(nav.year, nav.month)
-            nav.selected.copy(day = nav.selected.day.coerceAtMost(maxDay))
-        } else {
-            BsDate(nav.year, nav.month, 1)
-        }
-
-        CalendarUiState(
-            todayBs = todayBs,
-            selectedBsDate = safeSelected,
-            monthGrid = grid,
-            preferences = prefs,
-            allEvents = events,
-            isAddEditDialogOpen = nav.dialog.first,
-            editingEvent = nav.dialog.second,
-            isYearMonthPickerOpen = nav.pickerOpen,
+            settings = settings,
             statusBannerMessage = banner
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = CalendarUiState(
-            todayBs = initialTodayBs,
-            selectedBsDate = initialTodayBs,
-            monthGrid = buildMonthGrid(
-                bsYear = initialTodayBs.year,
-                bsMonth = initialTodayBs.month,
-                todayBs = initialTodayBs,
-                allEvents = emptyList(),
-                nepaliScript = false
-            ),
-            preferences = UserPreferences()
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = buildMonthUiState(
+            year = initialTodayBs.year,
+            month = initialTodayBs.month,
+            selected = initialTodayBs,
+            allEvents = emptyList(),
+            settings = UserSettings(),
+            statusBannerMessage = null
         )
     )
 
-    fun selectDate(date: BsDate) {
-        selectedDate.value = date
-        if (date.year != viewedYear.value || date.month != viewedMonth.value) {
-            viewedYear.value = date.year
-            viewedMonth.value = date.month
+    private fun buildMonthUiState(
+        year: Int,
+        month: Int,
+        selected: BsDate,
+        allEvents: List<EventEntity>,
+        settings: UserSettings,
+        statusBannerMessage: String?
+    ): CalendarMonthUiState {
+        val ne = settings.useDevanagari
+        val todayBs = BsDateConverter.adToBs(todayAd)
+        val totalDays = BsCalendarData.getDaysInMonth(year, month)
+        val dayModels = ArrayList<BsCalendarDay>(totalDays)
+
+        for (day in 1..totalDays) {
+            val bsDate = BsDate(year, month, day)
+            val adDate = BsDateConverter.bsToAd(bsDate)
+            val tithi = TithiCalculator.calculateTithi(bsDate, adDate)
+            val festivals = NepaliFestivals.getFestivalsForDay(bsDate, tithi)
+            dayModels.add(
+                BsCalendarDay(
+                    bsDate = bsDate,
+                    adDate = adDate,
+                    dayOfWeek = adDate.dayOfWeek,
+                    tithi = tithi,
+                    festivals = festivals,
+                    isToday = (bsDate == todayBs)
+                )
+            )
+        }
+
+        val firstDayAd = dayModels.first().adDate
+        val lastDayAd = dayModels.last().adDate
+        val leadingEmpty = firstDayAd.dayOfWeek.value % 7
+
+        val firstMonthShort = BsCalendarData.getAdMonthName(firstDayAd.monthValue, ne)
+        val lastMonthShort = BsCalendarData.getAdMonthName(lastDayAd.monthValue, ne)
+        val y1 = BsCalendarData.formatNumber(firstDayAd.year, ne)
+        val y2 = BsCalendarData.formatNumber(lastDayAd.year, ne)
+
+        val adSpan = if (firstDayAd.year == lastDayAd.year) {
+            if (firstDayAd.monthValue == lastDayAd.monthValue) {
+                "$firstMonthShort $y1"
+            } else {
+                "$firstMonthShort/$lastMonthShort $y1"
+            }
+        } else {
+            "$firstMonthShort $y1 – $lastMonthShort $y2"
+        }
+
+        val effectiveSelected = if (selected.year == year && selected.month == month) {
+            BsDate(year, month, selected.day.coerceIn(1, totalDays))
+        } else {
+            selected
+        }
+
+        val selectedModel = dayModels.firstOrNull { it.bsDate == effectiveSelected } ?: run {
+            val ad = BsDateConverter.bsToAd(effectiveSelected)
+            val tithi = TithiCalculator.calculateTithi(effectiveSelected, ad)
+            BsCalendarDay(
+                bsDate = effectiveSelected,
+                adDate = ad,
+                dayOfWeek = ad.dayOfWeek,
+                tithi = tithi,
+                festivals = NepaliFestivals.getFestivalsForDay(effectiveSelected, tithi),
+                isToday = (effectiveSelected == todayBs)
+            )
+        }
+
+        val eventsMap = eventRepository.resolveEventsForMonth(
+            allEvents = allEvents,
+            bsYear = year,
+            bsMonth = month,
+            strategy = settings.missingDayStrategy
+        )
+
+        return CalendarMonthUiState(
+            visibleYear = year,
+            visibleMonth = month,
+            daysInMonth = totalDays,
+            leadingEmptyCells = leadingEmpty,
+            days = dayModels,
+            selectedDate = effectiveSelected,
+            selectedDayModel = selectedModel,
+            todayBsDate = todayBs,
+            adMonthSpanLabel = adSpan,
+            eventsByDay = eventsMap,
+            allEvents = allEvents,
+            settings = settings,
+            statusBannerMessage = statusBannerMessage
+        )
+    }
+
+    fun selectDay(bsDate: BsDate) {
+        _selectedDate.value = bsDate
+        if (_visibleYearMonth.value != (bsDate.year to bsDate.month)) {
+            _visibleYearMonth.value = bsDate.year to bsDate.month
         }
     }
 
-    fun previousMonth() {
-        val y = viewedYear.value
-        val m = viewedMonth.value
-        if (m > 1) {
-            viewedMonth.value = m - 1
-            selectedDate.value = BsDate(y, m - 1, 1)
-        } else if (y > BsCalendarData.MIN_YEAR) {
-            viewedYear.value = y - 1
-            viewedMonth.value = 12
-            selectedDate.value = BsDate(y - 1, 12, 1)
+    fun prevMonth() {
+        val (y, m) = _visibleYearMonth.value
+        val (newY, newM) = if (m == 1) (y - 1) to 12 else y to (m - 1)
+        if (newY >= BsCalendarData.MIN_YEAR) {
+            _visibleYearMonth.value = newY to newM
+            val maxD = BsCalendarData.getDaysInMonth(newY, newM)
+            _selectedDate.value = BsDate(newY, newM, _selectedDate.value.day.coerceIn(1, maxD))
         }
     }
 
     fun nextMonth() {
-        val y = viewedYear.value
-        val m = viewedMonth.value
-        if (m < 12) {
-            viewedMonth.value = m + 1
-            selectedDate.value = BsDate(y, m + 1, 1)
-        } else if (y < BsCalendarData.MAX_YEAR) {
-            viewedYear.value = y + 1
-            viewedMonth.value = 1
-            selectedDate.value = BsDate(y + 1, 1, 1)
+        val (y, m) = _visibleYearMonth.value
+        val (newY, newM) = if (m == 12) (y + 1) to 1 else y to (m + 1)
+        if (newY <= BsCalendarData.MAX_YEAR) {
+            _visibleYearMonth.value = newY to newM
+            val maxD = BsCalendarData.getDaysInMonth(newY, newM)
+            _selectedDate.value = BsDate(newY, newM, _selectedDate.value.day.coerceIn(1, maxD))
         }
     }
 
-    fun jumpToToday() {
-        val todayBs = BsDateConverter.adToBs(LocalDate.now(nepalZone))
-        viewedYear.value = todayBs.year
-        viewedMonth.value = todayBs.month
-        selectedDate.value = todayBs
+    fun prevYear() {
+        val (y, m) = _visibleYearMonth.value
+        val newY = (y - 1).coerceAtLeast(BsCalendarData.MIN_YEAR)
+        _visibleYearMonth.value = newY to m
+        val maxD = BsCalendarData.getDaysInMonth(newY, m)
+        _selectedDate.value = BsDate(newY, m, _selectedDate.value.day.coerceIn(1, maxD))
+    }
+
+    fun nextYear() {
+        val (y, m) = _visibleYearMonth.value
+        val newY = (y + 1).coerceAtMost(BsCalendarData.MAX_YEAR)
+        _visibleYearMonth.value = newY to m
+        val maxD = BsCalendarData.getDaysInMonth(newY, m)
+        _selectedDate.value = BsDate(newY, m, _selectedDate.value.day.coerceIn(1, maxD))
     }
 
     fun jumpToYearMonth(year: Int, month: Int) {
         val clampedY = year.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
         val clampedM = month.coerceIn(1, 12)
-        viewedYear.value = clampedY
-        viewedMonth.value = clampedM
-        selectedDate.value = BsDate(clampedY, clampedM, 1)
-        yearMonthPickerState.value = false
+        _visibleYearMonth.value = clampedY to clampedM
+        val maxD = BsCalendarData.getDaysInMonth(clampedY, clampedM)
+        _selectedDate.value = BsDate(clampedY, clampedM, _selectedDate.value.day.coerceIn(1, maxD))
     }
 
-    fun openYearMonthPicker() {
-        yearMonthPickerState.value = true
-    }
-
-    fun closeYearMonthPicker() {
-        yearMonthPickerState.value = false
-    }
-
-    fun openAddEventDialog() {
-        dialogState.value = true to null
-    }
-
-    fun openEditEventDialog(event: BsEvent) {
-        dialogState.value = true to event
-    }
-
-    fun closeEventDialog() {
-        dialogState.value = false to null
+    fun jumpToToday() {
+        val todayBs = BsDateConverter.adToBs(todayAd)
+        _visibleYearMonth.value = todayBs.year to todayBs.month
+        _selectedDate.value = todayBs
     }
 
     fun clearStatusBanner() {
-        statusBanner.value = null
+        _statusBanner.value = null
     }
 
-    fun saveEvent(
-        existingId: Long?,
-        title: String,
-        notes: String,
-        bsMonth: Int,
-        bsDay: Int,
-        originBsYear: Int,
-        missingDayStrategy: MissingDayStrategy,
-        reminderEnabled: Boolean,
-        reminderHour: Int,
-        reminderMinute: Int
-    ) {
-        val trimmedTitle = title.trim()
-        if (trimmedTitle.isEmpty()) return
-
+    fun saveEvent(event: EventEntity) {
         viewModelScope.launch {
-            val event = BsEvent(
-                id = existingId ?: 0L,
-                title = trimmedTitle,
-                notes = notes.trim(),
-                bsMonth = bsMonth.coerceIn(1, 12),
-                bsDay = bsDay.coerceIn(1, 32),
-                originBsYear = originBsYear,
-                missingDayStrategy = missingDayStrategy,
-                reminderEnabled = reminderEnabled,
-                reminderHour = reminderHour.coerceIn(0, 23),
-                reminderMinute = reminderMinute.coerceIn(0, 59),
-                createdAtEpochMillis = System.currentTimeMillis()
-            )
-            val savedId = if (existingId == null || existingId == 0L) {
-                eventRepository.insertEvent(event)
-            } else {
-                eventRepository.updateEvent(event)
-                existingId
-            }
+            val savedId = eventRepository.saveEvent(event)
             val savedEvent = event.copy(id = savedId)
-            alarmScheduler.scheduleNextOccurrence(savedEvent)
+            val settings = prefsRepository.getSettingsOnce()
+            if (savedEvent.reminderEnabled) {
+                ReminderScheduler.scheduleNextReminder(
+                    context = appContext,
+                    event = savedEvent,
+                    strategy = settings.missingDayStrategy
+                )
+            } else {
+                ReminderScheduler.cancelReminder(appContext, savedId)
+            }
 
-            val prefs = preferencesRepository.preferencesFlow.first()
-            if (prefs.syncToGoogleCalendar && GoogleCalendarSyncHelper.hasCalendarPermissions(appContext)) {
+            if (settings.syncToGoogleCalendar && GoogleCalendarSyncHelper.hasCalendarPermissions(appContext)) {
                 withContext(Dispatchers.IO) {
                     GoogleCalendarSyncHelper.syncSingleEvent(
                         context = appContext,
                         event = savedEvent,
-                        yearsAhead = prefs.googleSyncYearsAhead,
-                        nepaliScript = prefs.useNepaliScript
+                        strategy = settings.missingDayStrategy,
+                        yearsAhead = settings.googleSyncYearsAhead,
+                        useDevanagari = settings.useDevanagari
                     )
                 }
             }
-            dialogState.value = false to null
         }
     }
 
-    fun deleteEvent(event: BsEvent) {
+    fun deleteEvent(event: EventEntity) {
         viewModelScope.launch {
-            alarmScheduler.cancelAlarm(event.id)
+            ReminderScheduler.cancelReminder(appContext, event.id)
             withContext(Dispatchers.IO) {
                 GoogleCalendarSyncHelper.removeSyncedEvent(appContext, event.id)
             }
@@ -268,30 +282,30 @@ class CalendarViewModel(
         }
     }
 
-    fun exportOccurrenceToGoogleCalendar(resolved: ResolvedBsEvent, adDate: LocalDate, nepaliScript: Boolean) {
+    fun exportOccurrenceToGoogleCalendar(instance: ResolvedEventInstance) {
+        val ne = uiState.value.settings.useDevanagari
         GoogleCalendarSyncHelper.launchAddToGoogleCalendarIntent(
             context = appContext,
-            event = resolved.event,
-            resolvedBsDate = resolved.resolvedDate,
-            adDate = adDate,
-            nepaliScript = nepaliScript
+            instance = instance,
+            useDevanagari = ne
         )
     }
 
     fun syncAllEventsToGoogleCalendarNow() {
         viewModelScope.launch {
-            val prefs = preferencesRepository.preferencesFlow.first()
-            val ne = prefs.useNepaliScript
-            val events = eventRepository.getAllEventsSnapshot()
+            val settings = prefsRepository.getSettingsOnce()
+            val ne = settings.useDevanagari
+            val events = eventRepository.getAllEventsOnce()
             val result = withContext(Dispatchers.IO) {
                 GoogleCalendarSyncHelper.syncAllEvents(
                     context = appContext,
                     events = events,
-                    yearsAhead = prefs.googleSyncYearsAhead,
-                    nepaliScript = ne
+                    strategy = settings.missingDayStrategy,
+                    yearsAhead = settings.googleSyncYearsAhead,
+                    useDevanagari = ne
                 )
             }
-            statusBanner.value = when {
+            _statusBanner.value = when {
                 result.success -> AppStrings.syncSuccessStatus(
                     ne = ne,
                     countStr = BsCalendarData.formatNumber(result.syncedOccurrences, ne),
@@ -306,131 +320,60 @@ class CalendarViewModel(
         }
     }
 
-    // Settings mutations
-    fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { preferencesRepository.setThemeMode(mode) }
-    }
-
-    fun setUseNepaliScript(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setUseNepaliScript(enabled) }
-    }
-
-    fun setShowGregorianSubDate(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setShowGregorianSubDate(enabled) }
-    }
-
-    fun setShowTithiInGrid(enabled: Boolean) {
-        viewModelScope.launch { preferencesRepository.setShowTithiInGrid(enabled) }
-    }
-
-    fun setDefaultMissingDayStrategy(strategy: MissingDayStrategy) {
-        viewModelScope.launch { preferencesRepository.setDefaultMissingDayStrategy(strategy) }
-    }
-
-    fun setDefaultReminderTime(hour: Int, minute: Int) {
-        viewModelScope.launch { preferencesRepository.setDefaultReminderTime(hour, minute) }
-    }
-
-    fun setSyncToGoogleCalendar(enabled: Boolean) {
+    fun updateThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
-            preferencesRepository.setSyncToGoogleCalendar(enabled)
+            prefsRepository.setThemeMode(mode)
+        }
+    }
+
+    fun updateMissingDayStrategy(strategy: MissingDayStrategy) {
+        viewModelScope.launch {
+            prefsRepository.setMissingDayStrategy(strategy)
+            val events = eventRepository.getAllEventsOnce()
+            for (event in events) {
+                if (event.reminderEnabled) {
+                    ReminderScheduler.scheduleNextReminder(appContext, event, strategy)
+                }
+            }
+        }
+    }
+
+    fun updateUseDevanagari(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepository.setUseDevanagari(enabled)
+        }
+    }
+
+    fun updateShowGregorianSubDate(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepository.setShowGregorianSubDate(enabled)
+        }
+    }
+
+    fun updateShowTithiInGrid(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepository.setShowTithiInGrid(enabled)
+        }
+    }
+
+    fun updateDefaultReminderTime(hour: Int, minute: Int) {
+        viewModelScope.launch {
+            prefsRepository.setDefaultReminderTime(hour, minute)
+        }
+    }
+
+    fun updateSyncToGoogleCalendar(enabled: Boolean) {
+        viewModelScope.launch {
+            prefsRepository.setSyncToGoogleCalendar(enabled)
             if (enabled && GoogleCalendarSyncHelper.hasCalendarPermissions(appContext)) {
                 syncAllEventsToGoogleCalendarNow()
             }
         }
     }
 
-    fun setGoogleSyncYearsAhead(years: Int) {
+    fun updateGoogleSyncYearsAhead(years: Int) {
         viewModelScope.launch {
-            preferencesRepository.setGoogleSyncYearsAhead(years)
-        }
-    }
-
-    private fun buildMonthGrid(
-        bsYear: Int,
-        bsMonth: Int,
-        todayBs: BsDate,
-        allEvents: List<BsEvent>,
-        nepaliScript: Boolean
-    ): MonthGridState {
-        val totalDays = BsCalendarData.getDaysInMonth(bsYear, bsMonth)
-        val firstBs = BsDate(bsYear, bsMonth, 1)
-        val lastBs = BsDate(bsYear, bsMonth, totalDays)
-        val firstAd = BsDateConverter.bsToAd(firstBs)
-        val lastAd = BsDateConverter.bsToAd(lastBs)
-        val leadingEmpty = BsDateConverter.dayOfWeekIndex(firstAd)
-
-        // Pre-resolve all user events that land in this (bsYear, bsMonth)
-        val resolvedByDay = mutableMapOf<Int, MutableList<ResolvedBsEvent>>()
-        for (event in allEvents) {
-            if (bsYear < event.originBsYear) continue
-            val resolvedDate = BsDateConverter.resolveAnnualOccurrence(
-                targetYear = bsYear,
-                bsMonth = event.bsMonth,
-                bsDay = event.bsDay,
-                strategy = event.missingDayStrategy
-            )
-            if (resolvedDate != null && resolvedDate.year == bsYear && resolvedDate.month == bsMonth) {
-                val isClamped = resolvedDate.day != event.bsDay || resolvedDate.month != event.bsMonth
-                resolvedByDay.getOrPut(resolvedDate.day) { mutableListOf() }
-                    .add(ResolvedBsEvent(event = event, resolvedDate = resolvedDate, isClampedOrRolled = isClamped))
-            }
-        }
-
-        val cells = ArrayList<DayCellInfo>(totalDays)
-        for (day in 1..totalDays) {
-            val currentBs = BsDate(bsYear, bsMonth, day)
-            val currentAd = firstAd.plusDays((day - 1).toLong())
-            val dow = (leadingEmpty + (day - 1)) % 7
-            val isSaturday = dow == 6
-            val tithi = LunarTithiCalculator.calculateTithiAtSunrise(currentAd)
-            val holidays = NepaliHolidayCatalog.getHolidaysForDay(bsMonth, day, tithi)
-            val dayEvents = resolvedByDay[day] ?: emptyList()
-
-            cells.add(
-                DayCellInfo(
-                    bsDate = currentBs,
-                    adDate = currentAd,
-                    dayOfWeekIndex = dow,
-                    isSaturday = isSaturday,
-                    isToday = currentBs == todayBs,
-                    tithi = tithi,
-                    holidays = holidays,
-                    events = dayEvents
-                )
-            )
-        }
-
-        val m1 = BsCalendarData.getAdMonthName(firstAd.monthValue, nepaliScript)
-        val m2 = BsCalendarData.getAdMonthName(lastAd.monthValue, nepaliScript)
-        val y1 = BsCalendarData.formatNumber(firstAd.year, nepaliScript)
-        val y2 = BsCalendarData.formatNumber(lastAd.year, nepaliScript)
-
-        val adSpan = if (firstAd.year == lastAd.year) {
-            if (firstAd.month == lastAd.month) "$m1 $y1" else "$m1/$m2 $y1"
-        } else {
-            "$m1 $y1 – $m2 $y2"
-        }
-
-        return MonthGridState(
-            bsYear = bsYear,
-            bsMonth = bsMonth,
-            totalDays = totalDays,
-            leadingEmptyCells = leadingEmpty,
-            adMonthSpanLabel = adSpan,
-            days = cells
-        )
-    }
-
-    class Factory(
-        private val appContext: Context,
-        private val eventRepository: EventRepository,
-        private val preferencesRepository: UserPreferencesRepository,
-        private val alarmScheduler: EventAlarmScheduler
-    ) : ViewModelProvider.Factory {
-        @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return CalendarViewModel(appContext, eventRepository, preferencesRepository, alarmScheduler) as T
+            prefsRepository.setGoogleSyncYearsAhead(years)
         }
     }
 }

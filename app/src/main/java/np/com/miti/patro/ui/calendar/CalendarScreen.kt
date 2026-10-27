@@ -15,6 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -23,425 +27,469 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import np.com.miti.patro.data.preferences.UserPreferences
+import np.com.miti.patro.data.local.EventEntity
+import np.com.miti.patro.data.repository.ResolvedEventInstance
 import np.com.miti.patro.domain.engine.BsCalendarData
+import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
-import np.com.miti.patro.domain.model.BsEvent
-import np.com.miti.patro.domain.model.DayCellInfo
-import np.com.miti.patro.domain.model.MonthGridState
-import np.com.miti.patro.domain.model.ResolvedBsEvent
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
+import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
-import np.com.miti.patro.ui.components.PlaintextBracketButton
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
-import java.time.LocalDate
 
 /**
- * Main Bikram Sambat Calendar Screen.
- * Inspired by https://plaintextsports.com/:
- * - Strict monospace ASCII table with literal `+-------+` horizontal borders and `|` column borders.
+ * Main Monthly BS Calendar screen inspired by https://plaintextsports.com/
+ *
+ * - Strict monospace ASCII table with literal `+-------------+` (`-------`) horizontal borders
+ *   and `|` vertical column pipes.
  * - Selected date rendered as `[09]`, today as `*09*`.
- * - Zero app name or theme badge on the calendar screen.
- * - Full Nepali language localization across every single UI element when selected.
+ * - Zero app name or theme indicator on the calendar screen.
+ * - 100% Nepali language & Devanagari numerals across every UI element when enabled.
  */
 @Composable
 fun CalendarScreen(
-    uiState: CalendarUiState,
-    onSelectDate: (BsDate) -> Unit,
-    onPreviousMonth: () -> Unit,
+    state: CalendarMonthUiState,
+    onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    onPrevYear: () -> Unit,
+    onNextYear: () -> Unit,
+    onJumpToYearMonth: (Int, Int) -> Unit,
     onJumpToToday: () -> Unit,
-    onOpenYearMonthPicker: () -> Unit,
-    onOpenAddEvent: () -> Unit,
-    onOpenEditEvent: (BsEvent) -> Unit,
-    onDeleteEvent: (BsEvent) -> Unit,
-    onExportEventToGCal: (ResolvedBsEvent, LocalDate) -> Unit,
+    onSelectDay: (BsDate) -> Unit,
+    onSaveEvent: (EventEntity) -> Unit,
+    onDeleteEvent: (EventEntity) -> Unit,
+    onExportEventToGCal: (ResolvedEventInstance) -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    onRequestNotificationPermissionIfNeeded: () -> Unit
 ) {
     val palette = LocalMitiPalette.current
-    val prefs = uiState.preferences
-    val ne = prefs.useNepaliScript
-    val grid = uiState.monthGrid
+    val ne = state.settings.useDevanagari
     val scrollState = rememberScrollState()
 
-    val selectedCell = grid.days.firstOrNull { it.bsDate == uiState.selectedBsDate }
-        ?: grid.days.firstOrNull()
+    var showJumpDialog by remember { mutableStateOf(false) }
+    var editingEvent by remember { mutableStateOf<EventEntity?>(null) }
+    var showEventEditor by remember { mutableStateOf(false) }
+
+    val prevMonthIndex = if (state.visibleMonth == 1) 12 else state.visibleMonth - 1
+    val nextMonthIndex = if (state.visibleMonth == 12) 1 else state.visibleMonth + 1
+    val prevMonthShort = BsCalendarData.getShortMonthName(prevMonthIndex, ne)
+    val nextMonthShort = BsCalendarData.getShortMonthName(nextMonthIndex, ne)
+    val currentMonthFull = BsCalendarData.getMonthName(state.visibleMonth, ne)
+    val currentYearStr = BsCalendarData.formatNumber(state.visibleYear, ne)
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(palette.background)
             .verticalScroll(scrollState)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        // 1. Top Navigation Bar (Bracketed plaintext controls, no app title, no theme badge)
+        // 1. Plaintext Sports style Month/Year navigation bar framed by literal `-------` rules
         AsciiHorizontalRule()
-        TopPlaintextNavBar(
-            bsYear = grid.bsYear,
-            bsMonth = grid.bsMonth,
-            adSpanLabel = grid.adMonthSpanLabel,
-            nepaliScript = ne,
-            onPreviousMonth = onPreviousMonth,
-            onNextMonth = onNextMonth,
-            onJumpToToday = onJumpToToday,
-            onOpenYearMonthPicker = onOpenYearMonthPicker,
-            onOpenSettings = onOpenSettings
-        )
-        AsciiTableHorizontalBorder(columns = 7)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.surface)
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BracketButton(
+                text = "[< $prevMonthShort]",
+                onClick = onPrevMonth,
+                color = palette.cyan
+            )
 
-        // 2. Weekday Column Header Row framed with `|` dividers and `-------` border
-        WeekdayHeaderRow(nepaliScript = ne)
-        AsciiTableHorizontalBorder(columns = 7)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable { showJumpDialog = true }
+                    .padding(horizontal = 6.dp)
+            ) {
+                Text(
+                    text = if (ne) "[$currentMonthFull $currentYearStr v]" else "[${currentMonthFull.uppercase()} $currentYearStr v]",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = palette.foreground
+                )
+                if (state.settings.showGregorianSubDate) {
+                    Text(
+                        text = "(${state.adMonthSpanLabel})",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = palette.comment
+                    )
+                }
+            }
 
-        // 3. Monthly BS Calendar Table (7 columns x N weeks with literal `-------` & `|` borders)
-        MonthGridTable(
-            grid = grid,
-            selectedBsDate = uiState.selectedBsDate,
-            preferences = prefs,
-            onSelectDate = onSelectDate
+            BracketButton(
+                text = "[$nextMonthShort >]",
+                onClick = onNextMonth,
+                color = palette.cyan
+            )
+        }
+
+        // 2. Compact plaintext action bar: [<<YR] [YR>>] [TODAY] ... [+EVENT] [CFG]
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.surface)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BracketButton(
+                    text = AppStrings.prevYearBtn(ne),
+                    onClick = onPrevYear,
+                    color = palette.comment
+                )
+                BracketButton(
+                    text = AppStrings.nextYearBtn(ne),
+                    onClick = onNextYear,
+                    color = palette.comment
+                )
+                BracketButton(
+                    text = AppStrings.todayBtn(ne),
+                    onClick = onJumpToToday,
+                    color = palette.green
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BracketButton(
+                    text = AppStrings.addEventTopBtn(ne),
+                    onClick = {
+                        editingEvent = null
+                        showEventEditor = true
+                    },
+                    color = palette.green,
+                    isHighlighted = true
+                )
+                BracketButton(
+                    text = AppStrings.settingsBtn(ne),
+                    onClick = onOpenSettings,
+                    color = palette.purple
+                )
+            }
+        }
+
+        // 3. Monthly BS Calendar Tabular Grid (7 columns with literal `+-------------+` & `|` borders)
+        MonthlyBsGrid(
+            state = state,
+            onSelectDay = onSelectDay
         )
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 4. Selected Day Details + Tithi + Holidays + Repeating BS Events
-        if (selectedCell != null) {
-            SelectedDayDetailPanel(
-                cell = selectedCell,
-                nepaliScript = ne,
-                onAddEvent = onOpenAddEvent,
-                onEditEvent = onOpenEditEvent,
-                onDeleteEvent = onDeleteEvent,
+        // 4. Selected Day Box Score Card (Tithi, AD Date, Festivals, Repeating Events)
+        state.selectedDayModel?.let { selectedDay ->
+            val dayEvents = state.eventsByDay[selectedDay.bsDate.day].orEmpty()
+            SelectedDayDetailBox(
+                day = selectedDay,
+                dayEvents = dayEvents,
+                useDevanagari = ne,
+                onAddEventForDay = {
+                    editingEvent = null
+                    showEventEditor = true
+                },
+                onEditEvent = { instance ->
+                    editingEvent = instance.entity
+                    showEventEditor = true
+                },
+                onDeleteEvent = { instance ->
+                    onDeleteEvent(instance.entity)
+                },
                 onExportEventToGCal = onExportEventToGCal
             )
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 5. Monthly Holidays & Festivals Summary Box
-        MonthHolidaysSummaryBox(
-            grid = grid,
-            nepaliScript = ne,
-            onSelectDate = onSelectDate
+        // 5. Month Summary: Repeating Events & Major Festivals in this BS Month
+        MonthEventsAndFestivalsBox(
+            state = state,
+            onSelectDay = onSelectDay,
+            onEditEvent = { entity ->
+                editingEvent = entity
+                showEventEditor = true
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+
+    if (showJumpDialog) {
+        YearMonthJumpDialog(
+            initialYear = state.visibleYear,
+            initialMonth = state.visibleMonth,
+            useDevanagari = ne,
+            onDismiss = { showJumpDialog = false },
+            onConfirm = { y, m ->
+                showJumpDialog = false
+                onJumpToYearMonth(y, m)
+            }
+        )
+    }
+
+    if (showEventEditor) {
+        EventEditorDialog(
+            initialBsDate = state.selectedDate,
+            existingEvent = editingEvent,
+            defaultReminderHour = state.settings.defaultReminderHour,
+            defaultReminderMinute = state.settings.defaultReminderMinute,
+            missingDayStrategy = state.settings.missingDayStrategy,
+            useDevanagari = ne,
+            onDismiss = { showEventEditor = false },
+            onSave = { entity ->
+                showEventEditor = false
+                if (entity.reminderEnabled) {
+                    onRequestNotificationPermissionIfNeeded()
+                }
+                onSaveEvent(entity)
+            }
+        )
+    }
 }
 
 @Composable
-private fun TopPlaintextNavBar(
-    bsYear: Int,
-    bsMonth: Int,
-    adSpanLabel: String,
-    nepaliScript: Boolean,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    onJumpToToday: () -> Unit,
-    onOpenYearMonthPicker: () -> Unit,
-    onOpenSettings: () -> Unit
+private fun MonthlyBsGrid(
+    state: CalendarMonthUiState,
+    onSelectDay: (BsDate) -> Unit
 ) {
     val palette = LocalMitiPalette.current
-    val monthName = BsCalendarData.getMonthName(bsMonth, nepaliScript)
-    val yearLabel = BsCalendarData.formatNumber(bsYear, nepaliScript)
+    val ne = state.settings.useDevanagari
+    val weekdays = if (ne) BsCalendarData.WEEKDAY_SHORT_NE else BsCalendarData.WEEKDAY_SHORT_EN
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(palette.surfaceElevated)
-            .padding(horizontal = 6.dp, vertical = 6.dp)
+            .background(palette.surface)
     ) {
+        AsciiTableHorizontalBorder(columns = 7)
+
+        // Weekday header row framed by `|` pipes
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.selection.copy(alpha = 0.45f))
+                .padding(vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PlaintextBracketButton(
-                label = AppStrings.prevBtn(nepaliScript),
-                onClick = onPreviousMonth,
-                textColor = palette.accentCyan
+            weekdays.forEachIndexed { idx, label ->
+                val isSaturdayCol = idx == 6
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "|",
+                        color = palette.comment,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = label,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = if (isSaturdayCol) palette.red else palette.foreground,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Text(
+                text = "|",
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
             )
+        }
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(onClick = onOpenYearMonthPicker)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+        AsciiTableHorizontalBorder(columns = 7)
+
+        val totalCells = state.leadingEmptyCells + state.daysInMonth
+        val rows = (totalCells + 6) / 7
+
+        for (rowIdx in 0 until rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                for (colIdx in 0 until 7) {
+                    val cellIndex = rowIdx * 7 + colIdx
+                    val dayIndex = cellIndex - state.leadingEmptyCells
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "|",
+                            color = palette.comment,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                        if (dayIndex in 0 until state.days.size) {
+                            val dayModel = state.days[dayIndex]
+                            val dayEvents = state.eventsByDay[dayModel.bsDate.day].orEmpty()
+                            val isSelected = dayModel.bsDate == state.selectedDate
+                            BsDayCell(
+                                day = dayModel,
+                                events = dayEvents,
+                                isSelected = isSelected,
+                                useDevanagari = ne,
+                                showTithi = state.settings.showTithiInGrid,
+                                showAdSubDate = state.settings.showGregorianSubDate,
+                                onClick = { onSelectDay(dayModel.bsDate) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(60.dp)
+                                    .background(palette.background)
+                            )
+                        }
+                    }
+                }
                 Text(
-                    text = if (nepaliScript) "[$monthName $yearLabel v]" else "[${monthName.uppercase()} $yearLabel v]",
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Text(
-                    text = adSpanLabel,
+                    text = "|",
                     color = palette.comment,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp
                 )
             }
-
-            PlaintextBracketButton(
-                label = AppStrings.nextBtn(nepaliScript),
-                onClick = onNextMonth,
-                textColor = palette.accentCyan
-            )
-        }
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PlaintextBracketButton(
-                label = AppStrings.todayBtn(nepaliScript),
-                onClick = onJumpToToday,
-                textColor = palette.accentGreen
-            )
-            PlaintextBracketButton(
-                label = AppStrings.settingsBtn(nepaliScript),
-                onClick = onOpenSettings,
-                textColor = palette.comment
-            )
-        }
-    }
-}
-
-@Composable
-private fun WeekdayHeaderRow(nepaliScript: Boolean) {
-    val palette = LocalMitiPalette.current
-    val headers = if (nepaliScript) BsCalendarData.WEEKDAYS_NE else BsCalendarData.WEEKDAYS_EN
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.surfaceElevated)
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        headers.forEachIndexed { index, label ->
-            val isSaturday = index == 6
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "|",
-                    color = palette.gridBorder,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = label,
-                    color = if (isSaturday) palette.holidayRed else palette.comment,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        Text(
-            text = "|",
-            color = palette.gridBorder,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp
-        )
-    }
-}
-
-@Composable
-private fun MonthGridTable(
-    grid: MonthGridState,
-    selectedBsDate: BsDate,
-    preferences: UserPreferences,
-    onSelectDate: (BsDate) -> Unit
-) {
-    val palette = LocalMitiPalette.current
-    val totalSlots = grid.leadingEmptyCells + grid.totalDays
-    val rowCount = (totalSlots + 6) / 7
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        for (row in 0 until rowCount) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                for (col in 0 until 7) {
-                    val slotIndex = row * 7 + col
-                    val dayNumber = slotIndex - grid.leadingEmptyCells + 1
-                    val cellInfo = if (dayNumber in 1..grid.totalDays) {
-                        grid.days[dayNumber - 1]
-                    } else {
-                        null
-                    }
-
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Left ASCII column pipe `|`
-                        Text(
-                            text = "|",
-                            color = palette.gridBorder,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            lineHeight = 12.sp
-                        )
-                        DayGridCell(
-                            cell = cellInfo,
-                            isSelected = cellInfo?.bsDate == selectedBsDate,
-                            preferences = preferences,
-                            onSelectDate = onSelectDate,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-                // Far-right closing ASCII column pipe `|`
-                Text(
-                    text = "|",
-                    color = palette.gridBorder,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-            }
-            // Literal `+-------------+` ASCII border line below every week row
             AsciiTableHorizontalBorder(columns = 7)
         }
     }
 }
 
 @Composable
-private fun DayGridCell(
-    cell: DayCellInfo?,
+private fun BsDayCell(
+    day: BsCalendarDay,
+    events: List<ResolvedEventInstance>,
     isSelected: Boolean,
-    preferences: UserPreferences,
-    onSelectDate: (BsDate) -> Unit,
+    useDevanagari: Boolean,
+    showTithi: Boolean,
+    showAdSubDate: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalMitiPalette.current
-    val ne = preferences.useNepaliScript
+    val hasPersonalHoliday = events.any { it.entity.isPersonalHoliday }
+    val isHoliday = day.isPublicHoliday || hasPersonalHoliday
 
-    if (cell == null) {
-        Box(
-            modifier = modifier
-                .height(62.dp)
-                .background(palette.background)
-        )
-        return
-    }
-
-    val isPublicHoliday = cell.isSaturday || cell.holidays.any { it.isPublicHoliday }
-    val hasFestival = cell.holidays.isNotEmpty()
-    val hasUserEvent = cell.events.isNotEmpty()
-
-    val bgColor = when {
-        isSelected -> palette.selectedCellBg
-        cell.isToday -> palette.todayCellBg
+    val cellBg = when {
+        isSelected -> palette.selection
+        day.isToday -> palette.yellow.copy(alpha = 0.16f)
         else -> palette.surface
     }
 
-    val dayNumberColor = when {
-        isPublicHoliday -> palette.holidayRed
-        hasFestival -> palette.festivalOrange
-        cell.isToday -> palette.accentGreen
+    val dayNumColor = when {
+        isHoliday -> palette.red
+        day.isToday -> palette.green
         else -> palette.foreground
     }
 
-    val rawDayNum = BsCalendarData.formatNumber(cell.bsDate.day, ne).padStart(2, if (ne) '०' else '0')
-    val dayDisplay = when {
-        isSelected -> "[$rawDayNum]"
-        cell.isToday -> "*$rawDayNum*"
-        else -> rawDayNum
+    val rawBsDay = BsCalendarData.formatNumber(day.bsDate.day, useDevanagari, padWidth = 2)
+    val bsDayText = when {
+        isSelected -> "[$rawBsDay]"
+        day.isToday -> "*$rawBsDay*"
+        else -> rawBsDay
+    }
+    val tithiLabel = if (useDevanagari) day.tithi.shortLabelNe else day.tithi.shortLabelEn
+
+    val tithiColor = when {
+        day.tithi.isPurnima -> palette.orange
+        day.tithi.isAunsi -> palette.pink
+        else -> palette.purple
     }
 
     Column(
         modifier = modifier
-            .height(62.dp)
-            .background(bgColor)
-            .clickable { onSelectDate(cell.bsDate) }
+            .height(60.dp)
+            .background(cellBg)
+            .clickable(onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 2.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top row: BS Day number (bracketed if selected) + AD sub-date
+        // Top row: BS day number (`[09]` when selected, `*09*` when today) + optional AD day
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
             Text(
-                text = dayDisplay,
-                color = dayNumberColor,
+                text = bsDayText,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = if (isSelected || cell.isToday) 11.sp else 13.sp,
+                fontSize = if (isSelected || day.isToday) 11.sp else 13.sp,
                 lineHeight = 13.sp,
+                color = dayNumColor,
                 maxLines = 1
             )
-            if (preferences.showGregorianSubDate) {
+            if (showAdSubDate) {
                 Text(
-                    text = BsCalendarData.formatNumber(cell.adDate.dayOfMonth, ne),
-                    color = palette.comment,
+                    text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagari),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 8.sp,
                     lineHeight = 9.sp,
+                    color = palette.comment,
                     maxLines = 1
                 )
             }
         }
 
-        // Middle row: Plaintext markers (`*` for festival/holiday, `+N` for repeating BS event)
+        // Middle row: Event (+N) and Festival (*) plaintext markers
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (hasFestival) {
+            if (day.festivals.isNotEmpty()) {
                 Text(
                     text = "*",
-                    color = if (isPublicHoliday) palette.holidayRed else palette.festivalOrange,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,
-                    lineHeight = 10.sp
+                    lineHeight = 10.sp,
+                    color = if (day.isPublicHoliday) palette.red else palette.orange
                 )
             }
-            if (hasUserEvent) {
-                val countLabel = BsCalendarData.formatNumber(cell.events.size, ne)
+            if (events.isNotEmpty()) {
+                val countStr = BsCalendarData.formatNumber(events.size, useDevanagari)
                 Text(
-                    text = "+$countLabel",
-                    color = palette.accentCyan,
+                    text = "+$countStr",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 9.sp,
-                    lineHeight = 10.sp
+                    lineHeight = 10.sp,
+                    color = palette.cyan
                 )
             }
         }
 
-        // Bottom row: Daily Tithi short label (Aunsi through Purnima)
-        if (preferences.showTithiInGrid) {
-            val tithiColor = when {
-                cell.tithi.isPurnima -> palette.purnimaYellow
-                cell.tithi.isAunsi -> palette.aunsiPink
-                else -> palette.tithiPurple
+        // Bottom row: Tithi short label + phase icon for Aunsi/Purnima
+        if (showTithi) {
+            val prefix = when {
+                day.tithi.isPurnima -> "●"
+                day.tithi.isAunsi -> "○"
+                else -> ""
             }
             Text(
-                text = if (ne) cell.tithi.nepaliName else cell.tithi.shortLabel,
-                color = tithiColor,
+                text = "$prefix$tithiLabel",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 8.sp,
                 lineHeight = 9.sp,
+                color = tithiColor,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Clip,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -449,84 +497,77 @@ private fun DayGridCell(
 }
 
 @Composable
-private fun SelectedDayDetailPanel(
-    cell: DayCellInfo,
-    nepaliScript: Boolean,
-    onAddEvent: () -> Unit,
-    onEditEvent: (BsEvent) -> Unit,
-    onDeleteEvent: (BsEvent) -> Unit,
-    onExportEventToGCal: (ResolvedBsEvent, LocalDate) -> Unit
+private fun SelectedDayDetailBox(
+    day: BsCalendarDay,
+    dayEvents: List<ResolvedEventInstance>,
+    useDevanagari: Boolean,
+    onAddEventForDay: () -> Unit,
+    onEditEvent: (ResolvedEventInstance) -> Unit,
+    onDeleteEvent: (ResolvedEventInstance) -> Unit,
+    onExportEventToGCal: (ResolvedEventInstance) -> Unit
 ) {
     val palette = LocalMitiPalette.current
-    val bsMonthName = BsCalendarData.getMonthName(cell.bsDate.month, nepaliScript)
-    val bsDayStr = BsCalendarData.formatNumber(cell.bsDate.day, nepaliScript)
-    val bsYearStr = BsCalendarData.formatNumber(cell.bsDate.year, nepaliScript)
-    val weekdayName = if (nepaliScript) {
-        BsCalendarData.WEEKDAYS_FULL_NE[cell.dayOfWeekIndex]
+    val ne = useDevanagari
+    val monthName = BsCalendarData.getMonthName(day.bsDate.month, ne)
+    val dayStr = BsCalendarData.formatNumber(day.bsDate.day, ne, padWidth = 2)
+    val yearStr = BsCalendarData.formatNumber(day.bsDate.year, ne)
+    val weekdayIdx = day.dayOfWeek.value % 7
+    val weekdayName = if (ne) {
+        BsCalendarData.WEEKDAY_FULL_NE[weekdayIdx]
     } else {
-        BsCalendarData.WEEKDAYS_FULL_EN[cell.dayOfWeekIndex]
+        BsCalendarData.WEEKDAY_FULL_EN[weekdayIdx]
     }
-    val adDateFormatted = BsCalendarData.formatAdDate(cell.adDate, nepaliScript)
+
+    val pakshaText = if (ne) day.tithi.paksha.nepaliName else day.tithi.paksha.englishName
+    val tithiText = if (ne) day.tithi.nepaliName else day.tithi.englishName
+    val adFormatted = BsCalendarData.formatAdDate(day.adDate, ne)
 
     PlaintextBox(
-        headerTitle = if (nepaliScript) {
-            "$bsYearStr $bsMonthName $bsDayStr ($weekdayName)"
-        } else {
-            "${bsMonthName.uppercase()} $bsDayStr, $bsYearStr BS ($weekdayName)"
-        },
-        headerRight = "$adDateFormatted AD"
+        borderColor = palette.purple,
+        headerText = "$yearStr $monthName $dayStr • $weekdayName ($adFormatted AD)",
+        headerColor = if (day.isPublicHoliday) palette.red else palette.purple
     ) {
-        // 1. Lunar Tithi & Paksha line
+        // Row 1: Tithi + Saturday badge
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val tithiDisplay = if (nepaliScript) {
-                "तिथि: ${cell.tithi.nepaliName} (${cell.tithi.paksha.nepaliName})"
-            } else {
-                "TITHI: ${cell.tithi.englishName} (${cell.tithi.paksha.englishName})"
-            }
-            val tithiMarker = when {
-                cell.tithi.isPurnima -> if (nepaliScript) " [पूर्णिमा ●]" else " [FULL MOON ●]"
-                cell.tithi.isAunsi -> if (nepaliScript) " [औंसी ○]" else " [NEW MOON ○]"
-                else -> ""
-            }
             Text(
-                text = tithiDisplay + tithiMarker,
-                color = palette.tithiPurple,
+                text = "${day.tithi.phaseSymbol} $pakshaText • $tithiText",
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
+                color = if (day.tithi.isPurnima || day.tithi.isAunsi) palette.orange else palette.cyan,
                 modifier = Modifier.weight(1f)
             )
-            if (cell.isSaturday) {
+            if (day.isSaturday) {
                 Text(
-                    text = AppStrings.saturdayHolidayBadge(nepaliScript),
-                    color = palette.holidayRed,
+                    text = AppStrings.saturdayHolidayBadge(ne),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    color = palette.red
                 )
             }
         }
 
-        // 2. Holidays & Festivals on this day
-        if (cell.holidays.isNotEmpty()) {
+        // Festivals on this day
+        if (day.festivals.isNotEmpty()) {
             Spacer(modifier = Modifier.height(6.dp))
-            cell.holidays.forEach { holiday ->
-                val tag = if (holiday.isPublicHoliday) {
-                    AppStrings.publicHolidayTag(nepaliScript)
+            day.festivals.forEach { fest ->
+                val festLabel = if (ne) fest.nameNe else fest.nameEn
+                val tag = if (fest.isPublicHoliday) {
+                    AppStrings.publicHolidayTag(ne)
                 } else {
-                    AppStrings.festivalTag(nepaliScript)
+                    AppStrings.festivalTag(ne)
                 }
-                val title = if (nepaliScript) holiday.titleNe else holiday.titleEn
                 Text(
-                    text = "$tag $title",
-                    color = if (holiday.isPublicHoliday) palette.holidayRed else palette.festivalOrange,
+                    text = "$tag $festLabel",
                     fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    fontWeight = if (fest.isPublicHoliday) FontWeight.Bold else FontWeight.Normal,
+                    fontSize = 12.sp,
+                    color = if (fest.isPublicHoliday) palette.red else palette.orange
                 )
             }
         }
@@ -535,118 +576,114 @@ private fun SelectedDayDetailPanel(
         AsciiHorizontalRule()
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 3. Repeating BS Events on this day
+        // Repeating user events on this day
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = AppStrings.repeatingEventsHeader(nepaliScript),
-                color = palette.comment,
+                text = AppStrings.repeatingEventsHeader(ne),
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp,
+                color = palette.green,
                 modifier = Modifier.weight(1f)
             )
-            PlaintextBracketButton(
-                label = AppStrings.addRepeatingBsEventBtn(nepaliScript),
-                onClick = onAddEvent,
-                textColor = palette.accentGreen
+            BracketButton(
+                text = AppStrings.addRepeatingBsEventBtn(ne),
+                onClick = onAddEventForDay,
+                color = palette.green
             )
         }
 
-        if (cell.events.isEmpty()) {
+        if (dayEvents.isEmpty()) {
             Text(
-                text = AppStrings.noRepeatingEventsMsg(nepaliScript),
-                color = palette.comment,
+                text = AppStrings.noRepeatingEventsMsg(ne),
                 fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp)
+                fontSize = 11.sp,
+                color = palette.comment
             )
         } else {
-            Spacer(modifier = Modifier.height(4.dp))
-            cell.events.forEach { resolved ->
-                val ev = resolved.event
-                val originMonthName = BsCalendarData.getMonthName(ev.bsMonth, nepaliScript)
-                val originDayStr = BsCalendarData.formatNumber(ev.bsDay, nepaliScript)
-                val resolvedDayStr = BsCalendarData.formatNumber(resolved.resolvedDate.day, nepaliScript)
-
+            dayEvents.forEach { instance ->
+                Spacer(modifier = Modifier.height(6.dp))
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .background(palette.surfaceElevated)
-                        .padding(8.dp)
+                        .background(palette.background)
+                        .padding(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val origDayStr = BsCalendarData.formatNumber(instance.entity.bsDay, ne)
+                        val clampTag = if (instance.isClampedOrRolled) {
+                            AppStrings.clampedDayTag(ne, origDayStr)
+                        } else {
+                            ""
+                        }
+                        val holidayTag = if (instance.entity.isPersonalHoliday) {
+                            AppStrings.personalHolidayTag(ne)
+                        } else {
+                            ""
+                        }
                         Text(
-                            text = "+ ${ev.title}",
-                            color = palette.accentCyan,
+                            text = "+ ${instance.entity.title}$clampTag$holidayTag",
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
+                            color = if (instance.entity.isPersonalHoliday) palette.red else palette.green,
                             modifier = Modifier.weight(1f)
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            PlaintextBracketButton(
-                                label = AppStrings.exportGCalBtn(nepaliScript),
-                                onClick = { onExportEventToGCal(resolved, cell.adDate) },
-                                textColor = palette.accentGreen
+                        Row {
+                            BracketButton(
+                                text = AppStrings.exportGCalBtn(ne),
+                                onClick = { onExportEventToGCal(instance) },
+                                color = palette.green
                             )
-                            PlaintextBracketButton(
-                                label = AppStrings.editBtn(nepaliScript),
-                                onClick = { onEditEvent(ev) },
-                                textColor = palette.accentPurple
+                            BracketButton(
+                                text = AppStrings.editBtn(ne),
+                                onClick = { onEditEvent(instance) },
+                                color = palette.cyan
                             )
-                            PlaintextBracketButton(
-                                label = AppStrings.deleteBtn(nepaliScript),
-                                onClick = { onDeleteEvent(ev) },
-                                textColor = palette.holidayRed
+                            BracketButton(
+                                text = AppStrings.deleteBtn(ne),
+                                onClick = { onDeleteEvent(instance) },
+                                color = palette.red
                             )
                         }
                     }
 
-                    val ruleInfo = buildString {
-                        append(AppStrings.repeatsAnnuallyEvery(nepaliScript, originMonthName, originDayStr))
-                        if (resolved.isClampedOrRolled) {
-                            append(" ")
-                            append(AppStrings.clampedDayNote(nepaliScript, originDayStr, resolvedDayStr))
-                        }
-                    }
-                    Text(
-                        text = ruleInfo,
-                        color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-
-                    val timeStr = BsCalendarData.formatTime24h(ev.reminderHour, ev.reminderMinute, nepaliScript)
-                    Text(
-                        text = AppStrings.alarmInfo(
-                            ne = nepaliScript,
-                            enabled = ev.reminderEnabled,
-                            timeStr = timeStr,
-                            strategyLabel = ev.missingDayStrategy.label(nepaliScript)
-                        ),
-                        color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp
-                    )
-
-                    if (ev.notes.isNotBlank()) {
+                    if (instance.entity.note.isNotBlank()) {
                         Text(
-                            text = ev.notes,
-                            color = palette.foreground,
+                            text = instance.entity.note,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 2.dp)
+                            color = palette.foreground
                         )
                     }
+
+                    val timeStr = BsCalendarData.formatTime24h(
+                        instance.entity.reminderHour,
+                        instance.entity.reminderMinute,
+                        ne
+                    )
+                    val startYearStr = BsCalendarData.formatNumber(instance.entity.startBsYear, ne)
+                    val remText = AppStrings.alarmSummary(
+                        ne = ne,
+                        enabled = instance.entity.reminderEnabled,
+                        timeStr = timeStr,
+                        daysBefore = instance.entity.reminderDaysBefore,
+                        startYearStr = startYearStr
+                    )
+                    Text(
+                        text = remText,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = palette.comment
+                    )
                     AsciiHorizontalRule()
                 }
             }
@@ -655,57 +692,107 @@ private fun SelectedDayDetailPanel(
 }
 
 @Composable
-private fun MonthHolidaysSummaryBox(
-    grid: MonthGridState,
-    nepaliScript: Boolean,
-    onSelectDate: (BsDate) -> Unit
+private fun MonthEventsAndFestivalsBox(
+    state: CalendarMonthUiState,
+    onSelectDay: (BsDate) -> Unit,
+    onEditEvent: (EventEntity) -> Unit
 ) {
     val palette = LocalMitiPalette.current
-    val monthName = BsCalendarData.getMonthName(grid.bsMonth, nepaliScript)
-    val yearStr = BsCalendarData.formatNumber(grid.bsYear, nepaliScript)
-    val holidayDays = grid.days.filter { it.holidays.isNotEmpty() }
+    val ne = state.settings.useDevanagari
+    val monthName = BsCalendarData.getMonthName(state.visibleMonth, ne)
+    val yearStr = BsCalendarData.formatNumber(state.visibleYear, ne)
+
+    val monthRepeatingEvents = state.eventsByDay.entries
+        .sortedBy { it.key }
+        .flatMap { (_, list) -> list }
+
+    val monthFestivals = state.days.filter { it.festivals.isNotEmpty() }
 
     PlaintextBox(
-        headerTitle = AppStrings.holidaysInMonthHeader(nepaliScript, monthName, yearStr),
-        headerRight = BsCalendarData.formatNumber(holidayDays.size, nepaliScript)
+        borderColor = palette.comment,
+        headerText = AppStrings.monthScheduleHeader(ne, monthName, yearStr),
+        headerColor = palette.foreground
     ) {
-        if (holidayDays.isEmpty()) {
+        if (monthRepeatingEvents.isEmpty() && monthFestivals.isEmpty()) {
             Text(
-                text = AppStrings.noFestivalsInMonthMsg(nepaliScript),
-                color = palette.comment,
+                text = AppStrings.noMonthScheduleMsg(ne),
                 fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
+                fontSize = 11.sp,
+                color = palette.comment
             )
-        } else {
-            holidayDays.forEach { cell ->
-                val dayNum = BsCalendarData.formatNumber(cell.bsDate.day, nepaliScript)
-                    .padStart(2, if (nepaliScript) '०' else '0')
-                val tithiLabel = if (nepaliScript) cell.tithi.nepaliName else cell.tithi.englishName
-                cell.holidays.forEach { h ->
-                    val title = if (nepaliScript) h.titleNe else h.titleEn
-                    val tag = if (h.isPublicHoliday) " ${AppStrings.holidayBadge(nepaliScript)}" else ""
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectDate(cell.bsDate) }
-                            .padding(vertical = 3.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "$dayNum $monthName : $title$tag",
-                            color = if (h.isPublicHoliday) palette.holidayRed else palette.festivalOrange,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = tithiLabel,
-                            color = palette.comment,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
-                    }
+        }
+
+        if (monthRepeatingEvents.isNotEmpty()) {
+            Text(
+                text = AppStrings.personalRepeatingSubheader(ne),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                color = palette.green
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            monthRepeatingEvents.forEach { item ->
+                val dNum = BsCalendarData.formatNumber(item.effectiveBsDate.day, ne, padWidth = 2)
+                val origDayStr = BsCalendarData.formatNumber(item.entity.bsDay, ne)
+                val clampedSuffix = if (item.isClampedOrRolled) {
+                    AppStrings.fromDaySuffix(ne, origDayStr)
+                } else {
+                    ""
                 }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectDay(item.effectiveBsDate) }
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "$dNum | + ${item.entity.title}$clampedSuffix",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = if (item.entity.isPersonalHoliday) palette.red else palette.green,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = AppStrings.editBtn(ne),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = palette.cyan,
+                        modifier = Modifier.clickable { onEditEvent(item.entity) }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        if (monthFestivals.isNotEmpty()) {
+            Text(
+                text = AppStrings.festivalsSubheader(ne),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                color = palette.orange
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            monthFestivals.forEach { dayModel ->
+                val dNum = BsCalendarData.formatNumber(dayModel.bsDate.day, ne, padWidth = 2)
+                val tithiName = if (ne) dayModel.tithi.nepaliName else dayModel.tithi.englishName
+                val names = dayModel.festivals.joinToString(", ") {
+                    if (ne) it.nameNe else it.nameEn
+                }
+                val isHol = dayModel.festivals.any { it.isPublicHoliday }
+                Text(
+                    text = "$dNum | $names ($tithiName)",
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = if (isHol) palette.red else palette.foreground,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectDay(dayModel.bsDate) }
+                        .padding(vertical = 2.dp)
+                )
             }
         }
     }

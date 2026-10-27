@@ -1,8 +1,8 @@
 package np.com.miti.patro.ui.calendar
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,68 +22,63 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
+import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
-import np.com.miti.patro.ui.components.PlaintextBracketButton
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun YearMonthJumpDialog(
     initialYear: Int,
     initialMonth: Int,
-    nepaliScript: Boolean,
+    useDevanagari: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (year: Int, month: Int) -> Unit
+    onConfirm: (Int, Int) -> Unit
 ) {
     val palette = LocalMitiPalette.current
-    val ne = nepaliScript
-    var selectedYear by remember { mutableIntStateOf(initialYear) }
-    var selectedMonth by remember { mutableIntStateOf(initialMonth) }
+    val ne = useDevanagari
+    var year by remember { mutableIntStateOf(initialYear) }
+    var month by remember { mutableIntStateOf(initialMonth) }
 
     Dialog(onDismissRequest = onDismiss) {
         PlaintextBox(
-            headerTitle = AppStrings.jumpToBsYearMonthHeader(ne),
-            headerRight = "${BsCalendarData.formatNumber(selectedYear, ne)}-${BsCalendarData.formatNumber(selectedMonth, ne).padStart(2, if (ne) '०' else '0')}",
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(palette.background)
+            borderColor = palette.cyan,
+            backgroundColor = palette.background,
+            headerText = AppStrings.jumpDialogHeader(ne),
+            headerColor = palette.cyan
         ) {
-            // Year Stepper
-            Text(
-                text = AppStrings.yearRangeLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PlaintextBracketButton(
-                    label = if (ne) "[-१०]" else "[-10]",
-                    onClick = { selectedYear = (selectedYear - 10).coerceAtLeast(BsCalendarData.MIN_YEAR) }
+                BracketButton(
+                    text = AppStrings.minus10YBtn(ne),
+                    onClick = { year = (year - 10).coerceAtLeast(BsCalendarData.MIN_YEAR) },
+                    color = palette.comment
                 )
-                PlaintextBracketButton(
-                    label = if (ne) "[-१]" else "[-1]",
-                    onClick = { selectedYear = (selectedYear - 1).coerceAtLeast(BsCalendarData.MIN_YEAR) }
+                BracketButton(
+                    text = AppStrings.minus1YBtn(ne),
+                    onClick = { year = (year - 1).coerceAtLeast(BsCalendarData.MIN_YEAR) },
+                    color = palette.cyan
                 )
                 Text(
-                    text = BsCalendarData.formatNumber(selectedYear, ne),
-                    color = palette.accentPurple,
+                    text = BsCalendarData.formatNumber(year, ne),
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 18.sp,
+                    color = palette.yellow
                 )
-                PlaintextBracketButton(
-                    label = if (ne) "[+१]" else "[+1]",
-                    onClick = { selectedYear = (selectedYear + 1).coerceAtMost(BsCalendarData.MAX_YEAR) }
+                BracketButton(
+                    text = AppStrings.plus1YBtn(ne),
+                    onClick = { year = (year + 1).coerceAtMost(BsCalendarData.MAX_YEAR) },
+                    color = palette.cyan
                 )
-                PlaintextBracketButton(
-                    label = if (ne) "[+१०]" else "[+10]",
-                    onClick = { selectedYear = (selectedYear + 10).coerceAtMost(BsCalendarData.MAX_YEAR) }
+                BracketButton(
+                    text = AppStrings.plus10YBtn(ne),
+                    onClick = { year = (year + 10).coerceAtMost(BsCalendarData.MAX_YEAR) },
+                    color = palette.comment
                 )
             }
 
@@ -91,33 +86,20 @@ fun YearMonthJumpDialog(
             AsciiHorizontalRule()
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 12 BS Months in a 3x4 plaintext grid
-            Text(
-                text = AppStrings.selectMonthLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-
-            for (row in 0 until 4) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    for (col in 0 until 3) {
-                        val m = row * 3 + col + 1
-                        val isCurrent = m == selectedMonth
-                        val mName = BsCalendarData.getMonthName(m, ne)
-                        val label = if (isCurrent) "*$mName*" else "[$mName]"
-                        PlaintextBracketButton(
-                            label = label,
-                            onClick = { selectedMonth = m },
-                            textColor = if (isCurrent) palette.accentGreen else palette.foreground,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                for (m in 1..12) {
+                    val mName = BsCalendarData.getMonthName(m, ne)
+                    val isSelected = (m == month)
+                    BracketButton(
+                        text = if (isSelected) "*$mName*" else "[$mName]",
+                        onClick = { month = m },
+                        color = if (isSelected) palette.purple else palette.foreground,
+                        isHighlighted = isSelected
+                    )
                 }
             }
 
@@ -129,15 +111,16 @@ fun YearMonthJumpDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                PlaintextBracketButton(
-                    label = AppStrings.cancelBtn(ne),
+                BracketButton(
+                    text = AppStrings.cancelBtn(ne),
                     onClick = onDismiss,
-                    textColor = palette.comment
+                    color = palette.comment
                 )
-                PlaintextBracketButton(
-                    label = AppStrings.goBtn(ne),
-                    onClick = { onConfirm(selectedYear, selectedMonth) },
-                    textColor = palette.accentGreen
+                BracketButton(
+                    text = AppStrings.goBtn(ne),
+                    onClick = { onConfirm(year, month) },
+                    color = palette.green,
+                    isHighlighted = true
                 )
             }
         }

@@ -5,105 +5,78 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.ui.calendar.CalendarScreen
 import np.com.miti.patro.ui.calendar.CalendarViewModel
-import np.com.miti.patro.ui.calendar.EventEditorDialog
-import np.com.miti.patro.ui.calendar.YearMonthJumpDialog
 import np.com.miti.patro.ui.settings.SettingsScreen
-import np.com.miti.patro.ui.theme.LocalMitiPalette
 import np.com.miti.patro.ui.theme.MitiTheme
 
 class MainActivity : ComponentActivity() {
 
+    private val viewModel: CalendarViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
-        val app = application as MitiApplication
 
         setContent {
-            val viewModel: CalendarViewModel = viewModel(
-                factory = CalendarViewModel.Factory(
-                    appContext = applicationContext,
-                    eventRepository = app.eventRepository,
-                    preferencesRepository = app.preferencesRepository,
-                    alarmScheduler = app.alarmScheduler
-                )
-            )
-            val uiState by viewModel.uiState.collectAsState()
-            var showSettingsScreen by remember { mutableStateOf(false) }
+            val state by viewModel.uiState.collectAsState()
+            var showSettings by rememberSaveable { mutableStateOf(false) }
 
-            // Request POST_NOTIFICATIONS permission on Android 13+ when reminders are used
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission(),
-                onResult = {}
+                onResult = { /* User choice respected offline */ }
             )
 
-            // Request READ_CALENDAR + WRITE_CALENDAR permissions when Google Calendar Sync is enabled or triggered
-            var pendingManualSyncAfterPerm by remember { mutableStateOf(false) }
+            var pendingSyncAfterPerm by remember { mutableStateOf(false) }
             val calendarPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
-            ) { permissions ->
-                val granted = permissions[Manifest.permission.READ_CALENDAR] == true &&
-                    permissions[Manifest.permission.WRITE_CALENDAR] == true
-                if (granted && pendingManualSyncAfterPerm) {
+            ) { perms ->
+                val granted = perms[Manifest.permission.READ_CALENDAR] == true &&
+                    perms[Manifest.permission.WRITE_CALENDAR] == true
+                if (granted && pendingSyncAfterPerm) {
                     viewModel.syncAllEventsToGoogleCalendarNow()
                 }
-                pendingManualSyncAfterPerm = false
+                pendingSyncAfterPerm = false
             }
 
-            LaunchedEffect(Unit) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    val granted = ContextCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (!granted) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-            }
-
-            MitiTheme(themeMode = uiState.preferences.themeMode) {
-                val palette = LocalMitiPalette.current
-                Surface(
+            MitiTheme(themeMode = state.settings.themeMode) {
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .safeDrawingPadding(),
-                    color = palette.background
+                        .safeDrawingPadding()
                 ) {
-                    if (showSettingsScreen) {
+                    if (showSettings) {
+                        BackHandler { showSettings = false }
                         SettingsScreen(
-                            preferences = uiState.preferences,
-                            statusBannerMessage = uiState.statusBannerMessage,
-                            onBack = { showSettingsScreen = false },
-                            onSelectTheme = viewModel::setThemeMode,
-                            onToggleNepaliScript = viewModel::setUseNepaliScript,
-                            onToggleGregorianSubDate = viewModel::setShowGregorianSubDate,
-                            onToggleTithiInGrid = viewModel::setShowTithiInGrid,
-                            onSelectMissingDayStrategy = viewModel::setDefaultMissingDayStrategy,
-                            onChangeDefaultReminderTime = viewModel::setDefaultReminderTime,
+                            settings = state.settings,
+                            statusBannerMessage = state.statusBannerMessage,
+                            onBack = { showSettings = false },
+                            onSelectThemeMode = viewModel::updateThemeMode,
+                            onSelectMissingDayStrategy = viewModel::updateMissingDayStrategy,
+                            onToggleDevanagari = viewModel::updateUseDevanagari,
+                            onToggleGregorianSubDate = viewModel::updateShowGregorianSubDate,
+                            onToggleTithiInGrid = viewModel::updateShowTithiInGrid,
+                            onChangeDefaultReminderTime = viewModel::updateDefaultReminderTime,
                             onToggleGoogleCalendarSync = { enabled ->
                                 if (enabled && !GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                    pendingManualSyncAfterPerm = true
-                                    viewModel.setSyncToGoogleCalendar(true)
+                                    pendingSyncAfterPerm = true
+                                    viewModel.updateSyncToGoogleCalendar(true)
                                     calendarPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.READ_CALENDAR,
@@ -111,13 +84,13 @@ class MainActivity : ComponentActivity() {
                                         )
                                     )
                                 } else {
-                                    viewModel.setSyncToGoogleCalendar(enabled)
+                                    viewModel.updateSyncToGoogleCalendar(enabled)
                                 }
                             },
-                            onChangeGoogleSyncYearsAhead = viewModel::setGoogleSyncYearsAhead,
+                            onChangeGoogleSyncYearsAhead = viewModel::updateGoogleSyncYearsAhead,
                             onSyncAllToGoogleCalendarNow = {
                                 if (!GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                    pendingManualSyncAfterPerm = true
+                                    pendingSyncAfterPerm = true
                                     calendarPermissionLauncher.launch(
                                         arrayOf(
                                             Manifest.permission.READ_CALENDAR,
@@ -132,46 +105,29 @@ class MainActivity : ComponentActivity() {
                         )
                     } else {
                         CalendarScreen(
-                            uiState = uiState,
-                            onSelectDate = viewModel::selectDate,
-                            onPreviousMonth = viewModel::previousMonth,
+                            state = state,
+                            onPrevMonth = viewModel::prevMonth,
                             onNextMonth = viewModel::nextMonth,
+                            onPrevYear = viewModel::prevYear,
+                            onNextYear = viewModel::nextYear,
+                            onJumpToYearMonth = viewModel::jumpToYearMonth,
                             onJumpToToday = viewModel::jumpToToday,
-                            onOpenYearMonthPicker = viewModel::openYearMonthPicker,
-                            onOpenAddEvent = viewModel::openAddEventDialog,
-                            onOpenEditEvent = viewModel::openEditEventDialog,
+                            onSelectDay = viewModel::selectDay,
+                            onSaveEvent = viewModel::saveEvent,
                             onDeleteEvent = viewModel::deleteEvent,
-                            onExportEventToGCal = { resolved, adDate ->
-                                viewModel.exportOccurrenceToGoogleCalendar(
-                                    resolved = resolved,
-                                    adDate = adDate,
-                                    nepaliScript = uiState.preferences.useNepaliScript
-                                )
-                            },
-                            onOpenSettings = { showSettingsScreen = true }
-                        )
-                    }
-
-                    if (uiState.isAddEditDialogOpen) {
-                        EventEditorDialog(
-                            selectedBsDate = uiState.selectedBsDate,
-                            existingEvent = uiState.editingEvent,
-                            defaultMissingDayStrategy = uiState.preferences.defaultMissingDayStrategy,
-                            defaultReminderHour = uiState.preferences.defaultReminderHour,
-                            defaultReminderMinute = uiState.preferences.defaultReminderMinute,
-                            nepaliScript = uiState.preferences.useNepaliScript,
-                            onDismiss = viewModel::closeEventDialog,
-                            onSave = viewModel::saveEvent
-                        )
-                    }
-
-                    if (uiState.isYearMonthPickerOpen) {
-                        YearMonthJumpDialog(
-                            initialYear = uiState.monthGrid.bsYear,
-                            initialMonth = uiState.monthGrid.bsMonth,
-                            nepaliScript = uiState.preferences.useNepaliScript,
-                            onDismiss = viewModel::closeYearMonthPicker,
-                            onConfirm = viewModel::jumpToYearMonth
+                            onExportEventToGCal = viewModel::exportOccurrenceToGoogleCalendar,
+                            onOpenSettings = { showSettings = true },
+                            onRequestNotificationPermissionIfNeeded = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    val granted = ContextCompat.checkSelfPermission(
+                                        this@MainActivity,
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (!granted) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                }
+                            }
                         )
                     }
                 }

@@ -30,13 +30,9 @@
         </activity>
 
         <receiver
-            android:name=".reminder.EventReminderReceiver"
+            android:name=".reminder.ReminderReceiver"
             android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="np.com.miti.patro.ACTION_EVENT_REMINDER" />
-            </intent-filter>
-        </receiver>
+            android:exported="false" />
 
         <receiver
             android:name=".reminder.BootCompletedReceiver"

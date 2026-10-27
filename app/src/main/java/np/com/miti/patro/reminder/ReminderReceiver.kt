@@ -24,6 +24,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getInstance(context)
                 val prefsRepo = UserPreferencesRepository(context)
                 val settings = prefsRepo.getSettingsOnce()
+                val ne = settings.useDevanagari
                 val event = db.eventDao().getEventById(eventId) ?: return@launch
 
                 val currentBsYear = BsDateConverter.adToBs(ZonedDateTime.now().toLocalDate()).year
@@ -39,23 +40,16 @@ class ReminderReceiver : BroadcastReceiver() {
                     strategy = settings.missingDayStrategy
                 )
 
+                val suffix = if (ne) "बि.सं." else "BS"
                 val bsLabel = if (resolved != null) {
-                    val mName = BsCalendarData.getMonthName(
-                        resolved.targetDate.month,
-                        settings.useDevanagari
-                    )
-                    val dStr = BsCalendarData.formatNumber(
-                        resolved.targetDate.day,
-                        settings.useDevanagari
-                    )
-                    val yStr = BsCalendarData.formatNumber(
-                        resolved.targetDate.year,
-                        settings.useDevanagari
-                    )
-                    "$yStr $mName $dStr BS"
+                    val mName = BsCalendarData.getMonthName(resolved.targetDate.month, ne)
+                    val dStr = BsCalendarData.formatNumber(resolved.targetDate.day, ne)
+                    val yStr = BsCalendarData.formatNumber(resolved.targetDate.year, ne)
+                    "$yStr $mName $dStr $suffix"
                 } else {
-                    val mName = BsCalendarData.getMonthName(event.bsMonth, settings.useDevanagari)
-                    "$mName ${event.bsDay} BS"
+                    val mName = BsCalendarData.getMonthName(event.bsMonth, ne)
+                    val dStr = BsCalendarData.formatNumber(event.bsDay, ne)
+                    "$mName $dStr $suffix"
                 }
 
                 NotificationHelper.showEventReminderNotification(

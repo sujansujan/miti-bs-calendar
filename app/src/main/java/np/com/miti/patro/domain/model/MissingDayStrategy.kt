@@ -1,43 +1,52 @@
 package np.com.miti.patro.domain.model
 
 /**
- * Defines how an annually repeating BS event behaves when its day (e.g., 30, 31, or 32)
- * does not exist in that BS month during a specific target year.
+ * Defines how an annual BS-repeating event is resolved when its BS day
+ * (e.g., 30, 31, or 32) does not exist in a particular upcoming BS year's month.
  */
 enum class MissingDayStrategy(
-    val code: String,
+    val key: String,
     val labelEn: String,
     val labelNe: String,
     val descriptionEn: String,
     val descriptionNe: String
 ) {
     CLAMP_TO_LAST_DAY(
-        code = "CLAMP",
-        labelEn = "Clamp to last day of month",
+        key = "CLAMP_TO_LAST_DAY",
+        labelEn = "Clamp to month end",
         labelNe = "महिनाको अन्तिम दिनमा सार्ने",
-        descriptionEn = "Trigger on the final day of the BS month (e.g., Day 32 -> Day 31 or 30)",
+        descriptionEn = "Trigger on the last day of the same BS month (e.g., day 32 -> 31)",
         descriptionNe = "महिना छोटो भएमा सोही महिनाको अन्तिम दिनमा मनाउने (जस्तै: ३२ गते -> ३१ वा ३० गते)"
     ),
     ROLL_TO_NEXT_MONTH(
-        code = "ROLL",
-        labelEn = "Roll to 1st of next month",
+        key = "ROLL_TO_NEXT_MONTH",
+        labelEn = "Roll to next month",
         labelNe = "अर्को महिनाको १ गते सार्ने",
-        descriptionEn = "Trigger on the 1st day of the following BS month",
+        descriptionEn = "Overflow into day 1 (or 2) of the following BS month",
         descriptionNe = "महिना छोटो भएमा अर्को महिनाको १ गते सार्ने"
     ),
     SKIP_YEAR(
-        code = "SKIP",
-        labelEn = "Skip years without exact day",
+        key = "SKIP_YEAR",
+        labelEn = "Exact day only",
         labelNe = "गते नभएको वर्ष छोड्ने",
-        descriptionEn = "Only trigger in BS years where the exact day number exists",
+        descriptionEn = "Skip years where that BS month has fewer days",
         descriptionNe = "जुन वर्ष सोही गते पर्छ, त्यही वर्ष मात्र देखाउने"
     );
 
-    fun label(nepali: Boolean): String = if (nepali) labelNe else labelEn
-    fun description(nepali: Boolean): String = if (nepali) descriptionNe else descriptionEn
+    fun label(useDevanagari: Boolean): String = if (useDevanagari) labelNe else labelEn
+    fun description(useDevanagari: Boolean): String = if (useDevanagari) descriptionNe else descriptionEn
 
     companion object {
-        fun fromCode(code: String): MissingDayStrategy =
-            entries.firstOrNull { it.code == code } ?: CLAMP_TO_LAST_DAY
+        fun fromKey(key: String?): MissingDayStrategy =
+            entries.firstOrNull { it.key == key } ?: CLAMP_TO_LAST_DAY
     }
 }
+
+/**
+ * Result of resolving an annual BS event in a specific target BS year.
+ */
+data class ResolvedBsOccurrence(
+    val targetDate: BsDate,
+    val originalDay: Int,
+    val isClampedOrRolled: Boolean
+)
