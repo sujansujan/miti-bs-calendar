@@ -158,4 +158,40 @@ object AppStrings {
     fun verificationBody(ne: Boolean) =
         if (ne) "यस एपमा वि.सं. १९७० देखि २१०० सम्मका महिनाका दिनहरू र मीमांसा/सूर्यसिद्धान्त चन्द्र-सौर्य गणितबाट गणना गरिएका तिथिहरू समावेश छन्। नेपाल सरकार पञ्चाङ्ग निर्णायक विकास समितिको आधिकारिक पात्रो वा हाम्रो पात्रोसँग दशैं, तिहार र एकादशीका तिथिहरू रुजु गर्न सकिन्छ।"
         else "BS month lengths (1970-2100 BS) use authoritative precomputed tables anchored to 1970 Baisakh 1 = 1913-04-13 AD. Daily Tithi is computed offline via Meeus lunar-solar elongation at Nepal Standard Time (UTC+05:45) sunrise. Verify exact Dashain/Tihar/Ekadashi sunrise boundary overrides against the Nepal Panchanga Nirnayak Bikash Samiti bulletin or Hamro Patro."
+
+    fun backupSectionHeader(ne: Boolean) =
+        if (ne) "६. ब्याकअप र रिस्टोर (सेटिङ र कार्यक्रम निर्यात / आयात)"
+        else "6. BACKUP & RESTORE (EXPORT / IMPORT SETTINGS & EVENTS)"
+
+    fun backupSectionNote(ne: Boolean) =
+        if (ne) "तपाईंको सबै सेटिङहरू र वार्षिक बि.सं. कार्यक्रमहरूलाई एउटै JSON फाइलमा सुरक्षित (Export) गर्न वा अर्को फोनमा सार्न (Import) सक्नुहुन्छ।"
+        else "Save all your settings and repeating BS events to a portable .json file, or restore a previous backup file onto this device."
+
+    fun exportBackupBtn(ne: Boolean) =
+        if (ne) "सेटिङ र कार्यक्रम निर्यात गर्नुहोस् (EXPORT .JSON)"
+        else "EXPORT SETTINGS & EVENTS (.JSON)"
+
+    fun importBackupBtn(ne: Boolean) =
+        if (ne) "ब्याकअप फाइल आयात गर्नुहोस् (IMPORT .JSON)"
+        else "IMPORT SETTINGS & EVENTS (.JSON)"
+
+    fun exportSuccessMsg(ne: Boolean, count: Int) =
+        if (ne) "सफलतापूर्वक सेटिङ र $count कार्यक्रमहरू JSON फाइलमा निर्यात गरियो।"
+        else "Exported settings and $count BS event(s) to JSON backup file."
+
+    fun exportErrorMsg(ne: Boolean) =
+        if (ne) "ब्याकअप फाइल सुरक्षित गर्न सकिएन।"
+        else "Failed to write backup file."
+
+    fun importSuccessMsg(ne: Boolean, addedCount: Int) =
+        if (ne) "ब्याकअपबाट सेटिङ र $addedCount कार्यक्रमहरू सफलतापूर्वक रिस्टोर गरियो।"
+        else "Restored settings and imported $addedCount BS event(s) from backup file."
+
+    fun importErrorMsg(ne: Boolean) =
+        if (ne) "ब्याकअप फाइल पढ्न सकिएन। कृपया सही .json फाइल छान्नुहोस्।"
+        else "Invalid or unreadable backup JSON file."
+
+    fun verificationSectionHeader7(ne: Boolean) =
+        if (ne) "७. डाटा स्रोत र प्रमाणीकरण जानकारी"
+        else "7. DATA ACCURACY & OFFICIAL VERIFICATION NOTES"
 }

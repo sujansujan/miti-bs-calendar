@@ -205,4 +205,21 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setGoogleSyncYearsAhead(years: Int) {
         context.dataStore.edit { it[Keys.GOOGLE_SYNC_YEARS_AHEAD] = years.coerceIn(1, 50) }
     }
+
+    suspend fun restoreSettings(restored: UserSettings) {
+        context.dataStore.edit {
+            it[Keys.THEME_MODE] = restored.themeMode.key
+            it[Keys.MISSING_DAY_STRATEGY] = restored.missingDayStrategy.key
+            it[Keys.NEPALI_SCRIPT_MODE] = restored.nepaliScriptMode.key
+            it[Keys.USE_DEVANAGARI] = (restored.nepaliScriptMode != NepaliScriptMode.ENGLISH)
+            it[Keys.SHOW_GREGORIAN_SUB_DATE] = restored.showGregorianSubDate
+            it[Keys.SHOW_TITHI_IN_GRID] = restored.showTithiInGrid
+            it[Keys.SHOW_PUBLIC_FESTIVALS] = restored.showPublicFestivals
+            it[Keys.DEFAULT_REMINDER_HOUR] = restored.defaultReminderHour.coerceIn(0, 23)
+            it[Keys.DEFAULT_REMINDER_MINUTE] = restored.defaultReminderMinute.coerceIn(0, 59)
+            it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = restored.defaultReminderDaysBefore.coerceIn(0, 30)
+            it[Keys.SYNC_TO_GOOGLE_CALENDAR] = restored.syncToGoogleCalendar
+            it[Keys.GOOGLE_SYNC_YEARS_AHEAD] = restored.googleSyncYearsAhead.coerceIn(1, 50)
+        }
+    }
 }

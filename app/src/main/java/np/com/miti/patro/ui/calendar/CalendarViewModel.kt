@@ -1,6 +1,8 @@
 package np.com.miti.patro.ui.calendar
 
 import android.content.Context
+import android.net.Uri
+import np.com.miti.patro.backup.BackupManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -367,6 +369,79 @@ class CalendarViewModel(
     fun updateGoogleSyncYearsAhead(years: Int) {
         viewModelScope.launch { preferencesRepository.setGoogleSyncYearsAhead(years) }
     }
+
+    fun exportBackupToUri(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val settings = preferencesRepository.userSettingsFlow.first()
+            val ne = settings.useDevanagariEverywhere
+            val events = eventRepository.getAllEventsSnapshot()
+            val ok = BackupManager.writeBackupToUri(
+                context = appContext,
+                uri = uri,
+                settings = settings,
+                events = events
+            )
+            _statusBanner.value = if (ok) {
+                AppStrings.exportSuccessMsg(ne, events.size)
+            } else {
+                AppStrings.exportErrorMsg(ne)
+            }
+        }
+    }
+
+    fun importBackupFromUri(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val currentSettings = preferencesRepository.userSettingsFlow.first()
+            val ne = currentSettings.useDevanagariEverywhere
+            val payload = BackupManager.readBackupFromUri(appContext, uri)
+            if (payload == null) {
+                _statusBanner.value = AppStrings.importErrorMsg(ne)
+                return@launch
+            }
+
+            preferencesRepository.restoreSettings(payload.settings)
+            val existing = eventRepository.getAllEventsSnapshot()
+            var importedCount = 0
+
+            for (incoming in payload.events) {
+                val match = existing.firstOrNull {
+                    it.title.equals(incoming.title, ignoreCase = true) &&
+                        it.bsMonth == incoming.bsMonth &&
+                        it.bsDay == incoming.bsDay
+                }
+                val toSave = if (match != null) {
+                    incoming.copy(id = match.id)
+                } else {
+                    incoming.copy(id = 0L)
+                }
+                val savedId = eventRepository.saveEvent(toSave)
+                val savedEntity = toSave.copy(id = savedId)
+                ReminderScheduler.scheduleNextReminder(
+                    context = appContext,
+                    event = savedEntity,
+                    strategy = payload.settings.missingDayStrategy
+                )
+                importedCount++
+            }
+
+            if (payload.settings.syncToGoogleCalendar &&
+                GoogleCalendarSyncHelper.hasCalendarPermissions(appContext)
+            ) {
+                val allAfterImport = eventRepository.getAllEventsSnapshot()
+                GoogleCalendarSyncHelper.syncAllEvents(
+                    context = appContext,
+                    events = allAfterImport,
+                    strategy = payload.settings.missingDayStrategy,
+                    yearsAhead = payload.settings.googleSyncYearsAhead,
+                    useDevanagari = payload.settings.useDevanagariEverywhere
+                )
+            }
+
+            val neAfter = payload.settings.useDevanagariEverywhere
+            _statusBanner.value = AppStrings.importSuccessMsg(neAfter, importedCount)
+        }
+    }
+
 
     class Factory(
         private val appContext: Context,

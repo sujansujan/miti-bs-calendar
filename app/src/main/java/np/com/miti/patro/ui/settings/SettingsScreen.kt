@@ -53,7 +53,9 @@ fun SettingsScreen(
     onDefaultReminderDaysBeforeChanged: (Int) -> Unit,
     onSyncToGoogleCalendarChanged: (Boolean) -> Unit,
     onGoogleSyncYearsAheadChanged: (Int) -> Unit,
-    onSyncAllToGoogleCalendarNow: () -> Unit
+    onSyncAllToGoogleCalendarNow: () -> Unit,
+    onExportBackupClicked: () -> Unit,
+    onImportBackupClicked: () -> Unit
 ) {
     val palette = LocalMitiPalette.current
     // Settings uses Devanagari only when EVERYWHERE mode is selected
@@ -380,8 +382,37 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // 6. Data Accuracy & Official Verification Info
-        PlaintextBox(header = AppStrings.verificationSectionHeader(ne)) {
+        // 6. Backup & Restore (Export / Import Settings & Events)
+        PlaintextBox(header = AppStrings.backupSectionHeader(ne)) {
+            Text(
+                text = AppStrings.backupSectionNote(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                BracketButton(
+                    label = AppStrings.exportBackupBtn(ne),
+                    onClick = onExportBackupClicked,
+                    textColor = palette.green,
+                    highlighted = true
+                )
+                BracketButton(
+                    label = AppStrings.importBackupBtn(ne),
+                    onClick = onImportBackupClicked,
+                    textColor = palette.cyan
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 7. Data Accuracy & Official Verification Info
+        PlaintextBox(header = AppStrings.verificationSectionHeader7(ne)) {
             Text(
                 text = AppStrings.verificationBody(ne),
                 color = palette.comment,

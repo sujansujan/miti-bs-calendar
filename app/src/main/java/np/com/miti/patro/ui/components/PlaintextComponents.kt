@@ -188,12 +188,14 @@ fun BracketButton(
         text = display,
         fontFamily = FontFamily.Monospace,
         fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
-        fontSize = 12.sp,
+        fontSize = 11.sp,
+        maxLines = 1,
+        softWrap = false,
         color = color,
         modifier = modifier
             .background(if (isHighlighted) palette.selection else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .padding(horizontal = 3.dp, vertical = 4.dp)
     )
 }
 
