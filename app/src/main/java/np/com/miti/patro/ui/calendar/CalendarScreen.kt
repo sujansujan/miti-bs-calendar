@@ -3,6 +3,9 @@ package np.com.miti.patro.ui.calendar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +73,7 @@ fun CalendarScreen(
     var showEventDialog by remember { mutableStateOf(false) }
     var editingEvent by remember { mutableStateOf<EventEntity?>(null) }
     var showJumpDialog by remember { mutableStateOf(false) }
+    var dragAccumulated by remember { mutableFloatStateOf(0f) }
 
     val adRangeHeader = remember(state.daysInMonthGrid) {
         val nonNullDays = state.daysInMonthGrid.filterNotNull()
@@ -197,6 +201,25 @@ fun CalendarScreen(
 
         AsciiTableHorizontalBorder()
 
+        // Swipeable Calendar Table Container (swipe left/right to change BS month)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(state.viewingYear, state.viewingMonth) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragAccumulated = 0f },
+                        onHorizontalDrag = { _, dragAmount -> dragAccumulated += dragAmount },
+                        onDragEnd = {
+                            if (dragAccumulated > 90f) {
+                                onPreviousMonth()
+                            } else if (dragAccumulated < -90f) {
+                                onNextMonth()
+                            }
+                            dragAccumulated = 0f
+                        }
+                    )
+                }
+        ) {
         // Weekday Header Row
         Row(
             modifier = Modifier
@@ -282,6 +305,8 @@ fun CalendarScreen(
                 }
             }
             AsciiTableHorizontalBorder()
+        }
+
         }
 
         Spacer(modifier = Modifier.height(8.dp))

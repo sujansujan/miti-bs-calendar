@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -64,9 +65,6 @@ fun EventEditorDialog(
         )
     }
     var isPersonalHoliday by remember { mutableStateOf(existingEvent?.isPersonalHoliday ?: false) }
-    var missingDayStrategy by remember {
-        mutableStateOf(existingEvent?.missingDayStrategy ?: defaultStrategy)
-    }
     var reminderEnabled by remember { mutableStateOf(existingEvent?.reminderEnabled ?: true) }
     var reminderHour by remember { mutableIntStateOf(existingEvent?.reminderHour ?: defaultReminderHour) }
     var reminderMinute by remember { mutableIntStateOf(existingEvent?.reminderMinute ?: defaultReminderMinute) }
@@ -94,19 +92,12 @@ fun EventEditorDialog(
                 color = palette.purple,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 15.sp
             )
             AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = AppStrings.bsAnchorDateLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-
+            // BS Month & Day Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -124,7 +115,7 @@ fun EventEditorDialog(
                         color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 14.sp
                     )
                     BracketButton(label = "+", onClick = {
                         bsMonth = if (bsMonth < 12) bsMonth + 1 else 1
@@ -139,11 +130,11 @@ fun EventEditorDialog(
                         bsDay = if (bsDay > 1) bsDay - 1 else 32
                     })
                     Text(
-                        text = "${ if (ne) "गते" else "Day" } ${BsCalendarData.formatNumber(bsDay, ne)}",
+                        text = BsCalendarData.formatNumberPadded(bsDay, ne),
                         color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 15.sp
                     )
                     BracketButton(label = "+", onClick = {
                         bsDay = if (bsDay < 32) bsDay + 1 else 1
@@ -151,7 +142,7 @@ fun EventEditorDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             PlaintextTextInput(
                 label = AppStrings.eventTitleLabel(ne),
@@ -161,7 +152,7 @@ fun EventEditorDialog(
                 singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             PlaintextTextInput(
                 label = AppStrings.eventNotesLabel(ne),
@@ -171,15 +162,15 @@ fun EventEditorDialog(
                 singleLine = false
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Event Color Picker (8 colors in a 4x2 plaintext grid)
+            // 8-color Swatch Picker (4x2)
             Text(
                 text = AppStrings.eventColorLabel(ne),
                 color = palette.comment,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
+                fontSize = 12.sp
             )
             Spacer(modifier = Modifier.height(4.dp))
             val allColors = EventColor.values()
@@ -196,23 +187,24 @@ fun EventEditorDialog(
                         val swatchColor = colorOption.composeColor(palette)
                         val labelText = colorOption.label(ne)
                         Text(
-                            text = if (isSelected) "[*● $labelText*]" else "[● $labelText]",
+                            text = "● $labelText",
                             color = swatchColor,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .weight(1f)
                                 .background(if (isSelected) palette.selection else palette.surface)
                                 .border(1.dp, if (isSelected) swatchColor else palette.comment)
                                 .clickable { selectedColor = colorOption }
-                                .padding(vertical = 5.dp, horizontal = 3.dp)
+                                .padding(vertical = 5.dp, horizontal = 2.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             PlaintextToggleRow(
                 label = AppStrings.markHolidayLabel(ne),
@@ -225,55 +217,6 @@ fun EventEditorDialog(
                 }
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = AppStrings.missingDayRuleHeader(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-
-            MissingDayStrategy.values().forEach { strategy ->
-                val selected = missingDayStrategy == strategy
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { missingDayStrategy = strategy }
-                        .padding(vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selected) "(*) " else "( ) ",
-                        color = if (selected) palette.cyan else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = strategy.label(ne),
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = AppStrings.reminderHeader(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
             PlaintextToggleRow(
                 label = AppStrings.enableReminderLabel(ne),
                 checked = reminderEnabled,
@@ -287,12 +230,6 @@ fun EventEditorDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = AppStrings.reminderTimingLabel(ne),
-                        color = palette.foreground,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf(
                             0 to AppStrings.sameDay(ne),
@@ -307,69 +244,36 @@ fun EventEditorDialog(
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = AppStrings.hourLabel(ne),
-                            color = palette.foreground,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
                         BracketButton(label = "-", onClick = {
                             reminderHour = (reminderHour + 23) % 24
                         })
+                        val hh = BsCalendarData.formatNumberPadded(reminderHour, ne)
+                        val mm = BsCalendarData.formatNumberPadded(reminderMinute, ne)
                         Text(
-                            text = BsCalendarData.formatNumberPadded(reminderHour, ne),
+                            text = "$hh:$mm",
                             color = palette.cyan,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = 13.sp,
+                            modifier = Modifier.clickable {
+                                reminderMinute = (reminderMinute + 15) % 60
+                            }
                         )
                         BracketButton(label = "+", onClick = {
                             reminderHour = (reminderHour + 1) % 24
                         })
                     }
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = AppStrings.minuteLabel(ne),
-                            color = palette.foreground,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp
-                        )
-                        BracketButton(label = "-15", onClick = {
-                            reminderMinute = (reminderMinute + 45) % 60
-                        })
-                        Text(
-                            text = BsCalendarData.formatNumberPadded(reminderMinute, ne),
-                            color = palette.cyan,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                        BracketButton(label = "+15", onClick = {
-                            reminderMinute = (reminderMinute + 15) % 60
-                        })
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

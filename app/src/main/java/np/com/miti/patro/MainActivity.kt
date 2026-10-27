@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,6 +69,10 @@ class MainActivity : ComponentActivity() {
             )
             val state by vm.uiState.collectAsState()
             var activeScreen by remember { mutableStateOf(ActiveScreen.CALENDAR) }
+
+            BackHandler(enabled = activeScreen != ActiveScreen.CALENDAR) {
+                activeScreen = ActiveScreen.CALENDAR
+            }
             var converterEventAnchorDate by remember { mutableStateOf<BsDate?>(null) }
             var pendingEventForGCalSync by remember { mutableStateOf<EventEntity?>(null) }
 

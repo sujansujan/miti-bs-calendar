@@ -16,13 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import np.com.miti.patro.domain.engine.BsCalendarData
@@ -43,6 +44,10 @@ private val AD_MONTH_SHORT_EN = arrayOf(
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 )
 
+/**
+ * Single unified BS <-> AD Date Converter workspace.
+ * Both BS -> AD and AD -> BS modes edit the exact same synchronized date in one place.
+ */
 @Composable
 fun DateConverterScreen(
     initialBsDate: BsDate,
@@ -55,31 +60,29 @@ fun DateConverterScreen(
     val ne = useDevanagari
     val scrollState = rememberScrollState()
 
-    // Section 1: BS -> AD state
-    var bsYear by remember { mutableIntStateOf(initialBsDate.year) }
-    var bsMonth by remember { mutableIntStateOf(initialBsDate.month) }
-    val maxBsDay = BsCalendarData.daysInMonth(bsYear, bsMonth)
-    var bsDay by remember { mutableIntStateOf(initialBsDate.day.coerceIn(1, maxBsDay)) }
-    val safeBsDay = bsDay.coerceIn(1, maxBsDay)
-    val currentBsInput = BsDate(bsYear, bsMonth, safeBsDay)
-    val convertedAdFromBs = remember(currentBsInput) { BsDateConverter.bsToAd(currentBsInput) }
-    val bsToAdTithi = remember(convertedAdFromBs) { TithiCalculator.calculateTithiAtSunrise(convertedAdFromBs) }
-    val bsToAdFestivals = remember(currentBsInput, bsToAdTithi) {
-        NepaliFestivals.getFestivalsForDay(currentBsInput, bsToAdTithi)
+    // Single synchronized date state (stored as BsDate; AD is derived losslessly)
+    var isBsInputMode by remember { mutableStateOf(true) }
+    var currentBsDate by remember { mutableStateOf(initialBsDate) }
+
+    val currentAdDate = remember(currentBsDate) { BsDateConverter.bsToAd(currentBsDate) }
+    val tithi = remember(currentAdDate) { TithiCalculator.calculateTithiAtSunrise(currentAdDate) }
+    val festivals = remember(currentBsDate, tithi) {
+        NepaliFestivals.getFestivalsForDay(currentBsDate, tithi)
     }
 
-    // Section 2: AD -> BS state
-    val initialAd = remember(initialBsDate) { BsDateConverter.bsToAd(initialBsDate) }
-    var adYear by remember { mutableIntStateOf(initialAd.year.coerceIn(1914, 2043)) }
-    var adMonth by remember { mutableIntStateOf(initialAd.monthValue) }
-    val maxAdDay = remember(adYear, adMonth) { YearMonth.of(adYear, adMonth).lengthOfMonth() }
-    var adDay by remember { mutableIntStateOf(initialAd.dayOfMonth.coerceIn(1, maxAdDay)) }
-    val safeAdDay = adDay.coerceIn(1, maxAdDay)
-    val currentAdInput = LocalDate.of(adYear, adMonth, safeAdDay)
-    val convertedBsFromAd = remember(currentAdInput) { BsDateConverter.adToBs(currentAdInput) }
-    val adToBsTithi = remember(currentAdInput) { TithiCalculator.calculateTithiAtSunrise(currentAdInput) }
-    val adToBsFestivals = remember(convertedBsFromAd, adToBsTithi) {
-        NepaliFestivals.getFestivalsForDay(convertedBsFromAd, adToBsTithi)
+    fun updateFromBs(year: Int, month: Int, day: Int) {
+        val safeY = year.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        val safeM = month.coerceIn(1, 12)
+        val maxD = BsCalendarData.daysInMonth(safeY, safeM)
+        currentBsDate = BsDate(safeY, safeM, day.coerceIn(1, maxD))
+    }
+
+    fun updateFromAd(year: Int, month: Int, day: Int) {
+        val safeY = year.coerceIn(1914, 2043)
+        val safeM = month.coerceIn(1, 12)
+        val maxD = YearMonth.of(safeY, safeM).lengthOfMonth()
+        val candidateAd = LocalDate.of(safeY, safeM, day.coerceIn(1, maxD))
+        currentBsDate = BsDateConverter.adToBs(candidateAd)
     }
 
     Column(
@@ -89,7 +92,7 @@ fun DateConverterScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        // Top Navigation Bar
+        // Top Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,360 +104,289 @@ fun DateConverterScreen(
                 textColor = palette.cyan
             )
             Text(
-                text = if (ne) "बि.सं. <-> इ.सं." else "BS <-> AD",
+                text = AppStrings.converterTopHeader(ne),
                 color = palette.foreground,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = 14.sp
             )
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = AppStrings.converterTopHeader(ne),
-            color = palette.purple,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp
-        )
-        AsciiHorizontalRule()
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // =====================================================================
-        // BOX 1: BS -> AD CONVERTER
-        // =====================================================================
-        PlaintextBox(header = AppStrings.bsToAdBoxHeader(ne)) {
-            // Year Stepper
-            Text(
-                text = AppStrings.selectYearLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
+        // Unified Converter Box
+        PlaintextBox(
+            header = if (isBsInputMode) AppStrings.bsToAdBoxHeader(ne) else AppStrings.adToBsBoxHeader(ne)
+        ) {
+            // Mode Switcher Row: [*BS -> AD*]   [AD -> BS]
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BracketButton("-10y", onClick = {
-                    bsYear = (bsYear - 10).coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
-                })
-                BracketButton("-1y", onClick = {
-                    bsYear = (bsYear - 1).coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
-                })
-                Text(
-                    text = BsCalendarData.formatNumber(bsYear, ne),
-                    color = palette.orange,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                BracketButton(
+                    label = AppStrings.bsToAdBoxHeader(ne),
+                    highlighted = isBsInputMode,
+                    onClick = { isBsInputMode = true },
+                    textColor = if (isBsInputMode) palette.cyan else palette.comment
                 )
-                BracketButton("+1y", onClick = {
-                    bsYear = (bsYear + 1).coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
-                })
-                BracketButton("+10y", onClick = {
-                    bsYear = (bsYear + 10).coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
-                })
+                BracketButton(
+                    label = AppStrings.adToBsBoxHeader(ne),
+                    highlighted = !isBsInputMode,
+                    onClick = { isBsInputMode = false },
+                    textColor = if (!isBsInputMode) palette.cyan else palette.comment
+                )
             }
 
-            // BS Month Grid (4x3)
-            Text(
-                text = AppStrings.selectMonthLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            for (row in 0 until 4) {
+            Spacer(modifier = Modifier.height(6.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(6.dp))
+
+            if (isBsInputMode) {
+                // BS Input Controls
+                val maxBsDay = BsCalendarData.daysInMonth(currentBsDate.year, currentBsDate.month)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (col in 0 until 3) {
-                        val m = row * 3 + col + 1
-                        val selected = m == bsMonth
-                        val mName = BsCalendarData.monthName(m, ne)
-                        Text(
-                            text = if (selected) "[*$mName*]" else "[$mName]",
-                            color = if (selected) palette.cyan else palette.foreground,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp,
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(if (selected) palette.selection else palette.surface)
-                                .border(1.dp, if (selected) palette.cyan else palette.comment)
-                                .clickable { bsMonth = m }
-                                .padding(vertical = 4.dp, horizontal = 4.dp)
-                        )
+                    BracketButton("-10y", onClick = {
+                        updateFromBs(currentBsDate.year - 10, currentBsDate.month, currentBsDate.day)
+                    })
+                    BracketButton("-1y", onClick = {
+                        updateFromBs(currentBsDate.year - 1, currentBsDate.month, currentBsDate.day)
+                    })
+                    Text(
+                        text = BsCalendarData.formatNumber(currentBsDate.year, ne),
+                        color = palette.orange,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    BracketButton("+1y", onClick = {
+                        updateFromBs(currentBsDate.year + 1, currentBsDate.month, currentBsDate.day)
+                    })
+                    BracketButton("+10y", onClick = {
+                        updateFromBs(currentBsDate.year + 10, currentBsDate.month, currentBsDate.day)
+                    })
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 4x3 BS Month Grid
+                for (row in 0 until 4) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        for (col in 0 until 3) {
+                            val m = row * 3 + col + 1
+                            val selected = (m == currentBsDate.month)
+                            val mName = BsCalendarData.monthName(m, ne)
+                            Text(
+                                text = mName,
+                                color = if (selected) palette.cyan else palette.foreground,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(if (selected) palette.selection else palette.surface)
+                                    .border(1.dp, if (selected) palette.cyan else palette.comment)
+                                    .clickable { updateFromBs(currentBsDate.year, m, currentBsDate.day) }
+                                    .padding(vertical = 6.dp, horizontal = 2.dp)
+                            )
+                        }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // BS Day Stepper
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BracketButton("-5d", onClick = {
+                        updateFromBs(currentBsDate.year, currentBsDate.month, (currentBsDate.day - 5).coerceAtLeast(1))
+                    })
+                    BracketButton("-1d", onClick = {
+                        updateFromBs(currentBsDate.year, currentBsDate.month, (currentBsDate.day - 1).coerceAtLeast(1))
+                    })
+                    Text(
+                        text = "${AppStrings.bsDayLabel(ne)} ${BsCalendarData.formatNumber(currentBsDate.day, ne)}",
+                        color = palette.cyan,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    BracketButton("+1d", onClick = {
+                        updateFromBs(currentBsDate.year, currentBsDate.month, (currentBsDate.day + 1).coerceAtMost(maxBsDay))
+                    })
+                    BracketButton("+5d", onClick = {
+                        updateFromBs(currentBsDate.year, currentBsDate.month, (currentBsDate.day + 5).coerceAtMost(maxBsDay))
+                    })
+                }
+            } else {
+                // AD Input Controls
+                val maxAdDay = YearMonth.of(currentAdDate.year, currentAdDate.monthValue).lengthOfMonth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BracketButton("-10y", onClick = {
+                        updateFromAd(currentAdDate.year - 10, currentAdDate.monthValue, currentAdDate.dayOfMonth)
+                    })
+                    BracketButton("-1y", onClick = {
+                        updateFromAd(currentAdDate.year - 1, currentAdDate.monthValue, currentAdDate.dayOfMonth)
+                    })
+                    Text(
+                        text = currentAdDate.year.toString(),
+                        color = palette.orange,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    BracketButton("+1y", onClick = {
+                        updateFromAd(currentAdDate.year + 1, currentAdDate.monthValue, currentAdDate.dayOfMonth)
+                    })
+                    BracketButton("+10y", onClick = {
+                        updateFromAd(currentAdDate.year + 10, currentAdDate.monthValue, currentAdDate.dayOfMonth)
+                    })
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // 4x3 AD Month Grid
+                for (row in 0 until 4) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        for (col in 0 until 3) {
+                            val m = row * 3 + col + 1
+                            val selected = (m == currentAdDate.monthValue)
+                            val mLabel = "${m.toString().padStart(2, '0')} ${AD_MONTH_SHORT_EN[m - 1]}"
+                            Text(
+                                text = mLabel,
+                                color = if (selected) palette.cyan else palette.foreground,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(if (selected) palette.selection else palette.surface)
+                                    .border(1.dp, if (selected) palette.cyan else palette.comment)
+                                    .clickable { updateFromAd(currentAdDate.year, m, currentAdDate.dayOfMonth) }
+                                    .padding(vertical = 6.dp, horizontal = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // AD Day Stepper
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BracketButton("-5d", onClick = {
+                        updateFromAd(currentAdDate.year, currentAdDate.monthValue, (currentAdDate.dayOfMonth - 5).coerceAtLeast(1))
+                    })
+                    BracketButton("-1d", onClick = {
+                        updateFromAd(currentAdDate.year, currentAdDate.monthValue, (currentAdDate.dayOfMonth - 1).coerceAtLeast(1))
+                    })
+                    Text(
+                        text = "${AppStrings.adDayLabel(ne)} ${currentAdDate.dayOfMonth}",
+                        color = palette.cyan,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    BracketButton("+1d", onClick = {
+                        updateFromAd(currentAdDate.year, currentAdDate.monthValue, (currentAdDate.dayOfMonth + 1).coerceAtMost(maxAdDay))
+                    })
+                    BracketButton("+5d", onClick = {
+                        updateFromAd(currentAdDate.year, currentAdDate.monthValue, (currentAdDate.dayOfMonth + 5).coerceAtMost(maxAdDay))
+                    })
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-            // BS Day Stepper
-            Text(
-                text = "${AppStrings.bsDayLabel(ne)} (1..${BsCalendarData.formatNumber(maxBsDay, ne)})",
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BracketButton("-5d", onClick = { bsDay = (safeBsDay - 5).coerceIn(1, maxBsDay) })
-                BracketButton("-1d", onClick = { bsDay = (safeBsDay - 1).coerceIn(1, maxBsDay) })
-                Text(
-                    text = BsCalendarData.formatNumber(safeBsDay, ne),
-                    color = palette.cyan,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                BracketButton("+1d", onClick = { bsDay = (safeBsDay + 1).coerceIn(1, maxBsDay) })
-                BracketButton("+5d", onClick = { bsDay = (safeBsDay + 5).coerceIn(1, maxBsDay) })
-            }
-
+            Spacer(modifier = Modifier.height(8.dp))
             AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Output Result for BS -> AD
+            // Unified Live Result Block
+            val wdIndex = BsDateConverter.dayOfWeekIndex(currentAdDate)
+            val wdName = BsCalendarData.weekdayShort(wdIndex, ne)
             Text(
-                text = AppStrings.convertedResultHeader(ne),
-                color = palette.purple,
+                text = "${AppStrings.bsDateLabel(ne)} ${currentBsDate.formatHuman(ne)} ($wdName)",
+                color = if (isBsInputMode) palette.foreground else palette.green,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
+                fontSize = 15.sp
             )
-            val wdIndex = BsDateConverter.dayOfWeekIndex(convertedAdFromBs)
-            val wdName = BsCalendarData.weekdayFull(wdIndex, ne)
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${AppStrings.bsDateLabel(ne)} ${currentBsInput.formatHuman(ne)} ($wdName)",
-                color = palette.foreground,
+                text = "${AppStrings.adDateLabel(ne)} $currentAdDate (${currentAdDate.dayOfWeek.name.take(3)})",
+                color = if (isBsInputMode) palette.green else palette.foreground,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
+                fontSize = 15.sp
             )
-            Text(
-                text = "${AppStrings.adDateLabel(ne)} $convertedAdFromBs (${convertedAdFromBs.dayOfWeek.name})",
-                color = palette.green,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
+            Spacer(modifier = Modifier.height(2.dp))
             val tithiDisplay = if (ne) {
-                "${bsToAdTithi.nepaliName} (${bsToAdTithi.paksha.nepaliName})"
+                "${tithi.phaseSymbol} ${tithi.nepaliName} (${tithi.paksha.nepaliName})"
             } else {
-                "${bsToAdTithi.englishName} (${bsToAdTithi.paksha.englishName})"
+                "${tithi.phaseSymbol} ${tithi.englishName} (${tithi.paksha.shortCode})"
             }
             Text(
                 text = "${AppStrings.tithiLabel(ne)} $tithiDisplay",
                 color = palette.cyan,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
+                fontSize = 13.sp
             )
-            if (bsToAdFestivals.isNotEmpty()) {
-                val festNames = bsToAdFestivals.joinToString(", ") {
+            if (festivals.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                val festNames = festivals.joinToString(", ") {
                     if (ne) it.nepaliTitle else it.englishTitle
                 }
                 Text(
-                    text = "${AppStrings.festivalsHeader(ne)} $festNames",
+                    text = "* $festNames",
                     color = palette.red,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 BracketButton(
                     label = AppStrings.openInCalendarBtn(ne),
-                    onClick = { onOpenBsDateInCalendar(currentBsInput) },
+                    onClick = { onOpenBsDateInCalendar(currentBsDate) },
                     textColor = palette.cyan
                 )
                 BracketButton(
-                    label = AppStrings.addEventOnConvertedBtn(ne),
-                    onClick = { onAddEventOnBsDate(currentBsInput) },
-                    textColor = palette.green
+                    label = "+",
+                    onClick = { onAddEventOnBsDate(currentBsDate) },
+                    textColor = palette.green,
+                    highlighted = true
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // =====================================================================
-        // BOX 2: AD -> BS CONVERTER
-        // =====================================================================
-        PlaintextBox(header = AppStrings.adToBsBoxHeader(ne)) {
-            Text(
-                text = AppStrings.adYearLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BracketButton("-10y", onClick = { adYear = (adYear - 10).coerceIn(1914, 2043) })
-                BracketButton("-1y", onClick = { adYear = (adYear - 1).coerceIn(1914, 2043) })
-                Text(
-                    text = adYear.toString(),
-                    color = palette.orange,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                BracketButton("+1y", onClick = { adYear = (adYear + 1).coerceIn(1914, 2043) })
-                BracketButton("+10y", onClick = { adYear = (adYear + 10).coerceIn(1914, 2043) })
-            }
-
-            // AD Month Grid (4x3)
-            Text(
-                text = AppStrings.adMonthLabel(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(3.dp))
-            for (row in 0 until 4) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    for (col in 0 until 3) {
-                        val m = row * 3 + col + 1
-                        val selected = m == adMonth
-                        val mLabel = "${m.toString().padStart(2, '0')} ${AD_MONTH_SHORT_EN[m - 1]}"
-                        Text(
-                            text = if (selected) "[*$mLabel*]" else "[$mLabel]",
-                            color = if (selected) palette.cyan else palette.foreground,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 11.sp,
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(if (selected) palette.selection else palette.surface)
-                                .border(1.dp, if (selected) palette.cyan else palette.comment)
-                                .clickable { adMonth = m }
-                                .padding(vertical = 4.dp, horizontal = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${AppStrings.adDayLabel(ne)} (1..$maxAdDay)",
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BracketButton("-5d", onClick = { adDay = (safeAdDay - 5).coerceIn(1, maxAdDay) })
-                BracketButton("-1d", onClick = { adDay = (safeAdDay - 1).coerceIn(1, maxAdDay) })
-                Text(
-                    text = safeAdDay.toString(),
-                    color = palette.cyan,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                BracketButton("+1d", onClick = { adDay = (safeAdDay + 1).coerceIn(1, maxAdDay) })
-                BracketButton("+5d", onClick = { adDay = (safeAdDay + 5).coerceIn(1, maxAdDay) })
-            }
-
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Output Result for AD -> BS
-            Text(
-                text = AppStrings.convertedResultHeader(ne),
-                color = palette.purple,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-            val wdIndex = BsDateConverter.dayOfWeekIndex(currentAdInput)
-            val wdName = BsCalendarData.weekdayFull(wdIndex, ne)
-            Text(
-                text = "${AppStrings.adDateLabel(ne)} $currentAdInput (${currentAdInput.dayOfWeek.name})",
-                color = palette.foreground,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp
-            )
-            Text(
-                text = "${AppStrings.bsDateLabel(ne)} ${convertedBsFromAd.formatHuman(ne)} ($wdName)",
-                color = palette.green,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
-            )
-            val tithiDisplay = if (ne) {
-                "${adToBsTithi.nepaliName} (${adToBsTithi.paksha.nepaliName})"
-            } else {
-                "${adToBsTithi.englishName} (${adToBsTithi.paksha.englishName})"
-            }
-            Text(
-                text = "${AppStrings.tithiLabel(ne)} $tithiDisplay",
-                color = palette.cyan,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            )
-            if (adToBsFestivals.isNotEmpty()) {
-                val festNames = adToBsFestivals.joinToString(", ") {
-                    if (ne) it.nepaliTitle else it.englishTitle
-                }
-                Text(
-                    text = "${AppStrings.festivalsHeader(ne)} $festNames",
-                    color = palette.red,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                BracketButton(
-                    label = AppStrings.openInCalendarBtn(ne),
-                    onClick = { onOpenBsDateInCalendar(convertedBsFromAd) },
-                    textColor = palette.cyan
-                )
-                BracketButton(
-                    label = AppStrings.addEventOnConvertedBtn(ne),
-                    onClick = { onAddEventOnBsDate(convertedBsFromAd) },
-                    textColor = palette.green
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
     }
 }
