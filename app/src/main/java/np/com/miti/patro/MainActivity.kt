@@ -5,130 +5,218 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import np.com.miti.patro.data.local.AppDatabase
+import np.com.miti.patro.data.local.EventEntity
+import np.com.miti.patro.data.preferences.UserPreferencesRepository
+import np.com.miti.patro.data.repository.EventRepository
+import np.com.miti.patro.domain.model.BsDate
+import np.com.miti.patro.reminder.NotificationHelper
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.ui.calendar.CalendarScreen
 import np.com.miti.patro.ui.calendar.CalendarViewModel
+import np.com.miti.patro.ui.calendar.EventEditorDialog
+import np.com.miti.patro.ui.converter.DateConverterScreen
 import np.com.miti.patro.ui.settings.SettingsScreen
+import np.com.miti.patro.ui.theme.AppStrings
+import np.com.miti.patro.ui.theme.LocalMitiPalette
 import np.com.miti.patro.ui.theme.MitiTheme
 
-class MainActivity : ComponentActivity() {
+private enum class ActiveScreen {
+    CALENDAR,
+    CONVERTER,
+    SETTINGS
+}
 
-    private val viewModel: CalendarViewModel by viewModels()
+class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContent {
-            val state by viewModel.uiState.collectAsState()
-            var showSettings by rememberSaveable { mutableStateOf(false) }
+        NotificationHelper.createNotificationChannel(applicationContext)
 
+        val database = AppDatabase.getInstance(applicationContext)
+        val eventRepository = EventRepository(database.eventDao())
+        val preferencesRepository = UserPreferencesRepository(applicationContext)
+
+        setContent {
+            val vm: CalendarViewModel = viewModel(
+                factory = CalendarViewModel.Factory(
+                    appContext = applicationContext,
+                    eventRepository = eventRepository,
+                    preferencesRepository = preferencesRepository
+                )
+            )
+            val state by vm.uiState.collectAsState()
+            var activeScreen by remember { mutableStateOf(ActiveScreen.CALENDAR) }
+            var converterEventAnchorDate by remember { mutableStateOf<BsDate?>(null) }
+            var pendingEventForGCalSync by remember { mutableStateOf<EventEntity?>(null) }
+
+            // Request POST_NOTIFICATIONS on Android 13+
             val notificationPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission(),
-                onResult = { /* User choice respected offline */ }
+                onResult = {}
             )
 
-            var pendingSyncAfterPerm by remember { mutableStateOf(false) }
+            // Request READ_CALENDAR + WRITE_CALENDAR for Google Calendar BS->AD multi-year sync
             val calendarPermissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
-            ) { perms ->
-                val granted = perms[Manifest.permission.READ_CALENDAR] == true &&
-                    perms[Manifest.permission.WRITE_CALENDAR] == true
-                if (granted && pendingSyncAfterPerm) {
-                    viewModel.syncAllEventsToGoogleCalendarNow()
+            ) { permissions ->
+                val granted = permissions[Manifest.permission.READ_CALENDAR] == true &&
+                    permissions[Manifest.permission.WRITE_CALENDAR] == true
+                val singleEvent = pendingEventForGCalSync
+                pendingEventForGCalSync = null
+                if (granted) {
+                    if (singleEvent != null) {
+                        vm.syncSingleEventToGoogleCalendarNow(singleEvent)
+                    } else {
+                        vm.syncAllEventsToGoogleCalendarNow()
+                    }
+                } else {
+                    vm.setStatusBanner(AppStrings.gcalPermDeniedMsg(state.settings.useDevanagariEverywhere))
                 }
-                pendingSyncAfterPerm = false
+            }
+
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val granted = ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
             }
 
             MitiTheme(themeMode = state.settings.themeMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .safeDrawingPadding()
+                val palette = LocalMitiPalette.current
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = palette.background
                 ) {
-                    if (showSettings) {
-                        BackHandler { showSettings = false }
-                        SettingsScreen(
-                            settings = state.settings,
-                            statusBannerMessage = state.statusBannerMessage,
-                            onBack = { showSettings = false },
-                            onSelectThemeMode = viewModel::updateThemeMode,
-                            onSelectMissingDayStrategy = viewModel::updateMissingDayStrategy,
-                            onToggleDevanagari = viewModel::updateUseDevanagari,
-                            onToggleGregorianSubDate = viewModel::updateShowGregorianSubDate,
-                            onToggleTithiInGrid = viewModel::updateShowTithiInGrid,
-                            onChangeDefaultReminderTime = viewModel::updateDefaultReminderTime,
-                            onToggleGoogleCalendarSync = { enabled ->
-                                if (enabled && !GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                    pendingSyncAfterPerm = true
-                                    viewModel.updateSyncToGoogleCalendar(true)
-                                    calendarPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.READ_CALENDAR,
-                                            Manifest.permission.WRITE_CALENDAR
+                    when (activeScreen) {
+                        ActiveScreen.CALENDAR -> {
+                            CalendarScreen(
+                                state = state,
+                                onPreviousMonth = vm::previousMonth,
+                                onNextMonth = vm::nextMonth,
+                                onPreviousYear = vm::previousYear,
+                                onNextYear = vm::nextYear,
+                                onJumpToMonthYear = vm::jumpToMonthYear,
+                                onJumpToToday = vm::jumpToToday,
+                                onSelectDate = vm::selectDate,
+                                onSaveEvent = vm::saveEvent,
+                                onDeleteEvent = vm::deleteEvent,
+                                onSyncEventToGCal = { event ->
+                                    if (GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
+                                        vm.syncSingleEventToGoogleCalendarNow(event)
+                                    } else {
+                                        pendingEventForGCalSync = event
+                                        calendarPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.READ_CALENDAR,
+                                                Manifest.permission.WRITE_CALENDAR
+                                            )
                                         )
-                                    )
-                                } else {
-                                    viewModel.updateSyncToGoogleCalendar(enabled)
+                                    }
+                                },
+                                onDismissStatusBanner = vm::clearStatusBanner,
+                                onOpenConverter = { activeScreen = ActiveScreen.CONVERTER },
+                                onOpenSettings = { activeScreen = ActiveScreen.SETTINGS }
+                            )
+                        }
+
+                        ActiveScreen.CONVERTER -> {
+                            DateConverterScreen(
+                                initialBsDate = state.selectedBsDate,
+                                useDevanagari = state.settings.useDevanagariEverywhere,
+                                onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
+                                onOpenBsDateInCalendar = { targetBsDate ->
+                                    vm.selectDate(targetBsDate)
+                                    activeScreen = ActiveScreen.CALENDAR
+                                },
+                                onAddEventOnBsDate = { targetBsDate ->
+                                    vm.selectDate(targetBsDate)
+                                    converterEventAnchorDate = targetBsDate
                                 }
-                            },
-                            onChangeGoogleSyncYearsAhead = viewModel::updateGoogleSyncYearsAhead,
-                            onSyncAllToGoogleCalendarNow = {
-                                if (!GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                    pendingSyncAfterPerm = true
-                                    calendarPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.READ_CALENDAR,
-                                            Manifest.permission.WRITE_CALENDAR
+                            )
+
+                            val anchor = converterEventAnchorDate
+                            if (anchor != null) {
+                                EventEditorDialog(
+                                    anchorBsDate = anchor,
+                                    existingEvent = null,
+                                    defaultStrategy = state.settings.defaultMissingDayStrategy,
+                                    defaultReminderHour = state.settings.defaultReminderHour,
+                                    defaultReminderMinute = state.settings.defaultReminderMinute,
+                                    defaultReminderDaysBefore = state.settings.defaultReminderDaysBefore,
+                                    useDevanagari = state.settings.useDevanagariEverywhere,
+                                    onDismiss = { converterEventAnchorDate = null },
+                                    onSave = { entity ->
+                                        vm.saveEvent(entity)
+                                        converterEventAnchorDate = null
+                                        activeScreen = ActiveScreen.CALENDAR
+                                    }
+                                )
+                            }
+                        }
+
+                        ActiveScreen.SETTINGS -> {
+                            SettingsScreen(
+                                settings = state.settings,
+                                statusBannerMessage = state.statusBannerMessage,
+                                onDismissBanner = vm::clearStatusBanner,
+                                onBack = { activeScreen = ActiveScreen.CALENDAR },
+                                onThemeModeChanged = vm::updateThemeMode,
+                                onMissingDayStrategyChanged = vm::updateMissingDayStrategy,
+                                onShowTithiChanged = vm::updateShowTithiInGrid,
+                                onShowGregorianChanged = vm::updateShowGregorianInGrid,
+                                onShowPublicFestivalsChanged = vm::updateShowPublicFestivals,
+                                onNepaliScriptModeChanged = vm::updateNepaliScriptMode,
+                                onDefaultReminderTimeChanged = vm::updateDefaultReminderTime,
+                                onDefaultReminderDaysBeforeChanged = vm::updateDefaultReminderDaysBefore,
+                                onSyncToGoogleCalendarChanged = { enable ->
+                                    if (enable && !GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
+                                        pendingEventForGCalSync = null
+                                        calendarPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.READ_CALENDAR,
+                                                Manifest.permission.WRITE_CALENDAR
+                                            )
                                         )
-                                    )
-                                } else {
-                                    viewModel.syncAllEventsToGoogleCalendarNow()
-                                }
-                            },
-                            onDismissStatusBanner = viewModel::clearStatusBanner
-                        )
-                    } else {
-                        CalendarScreen(
-                            state = state,
-                            onPrevMonth = viewModel::prevMonth,
-                            onNextMonth = viewModel::nextMonth,
-                            onPrevYear = viewModel::prevYear,
-                            onNextYear = viewModel::nextYear,
-                            onJumpToYearMonth = viewModel::jumpToYearMonth,
-                            onJumpToToday = viewModel::jumpToToday,
-                            onSelectDay = viewModel::selectDay,
-                            onSaveEvent = viewModel::saveEvent,
-                            onDeleteEvent = viewModel::deleteEvent,
-                            onExportEventToGCal = viewModel::exportOccurrenceToGoogleCalendar,
-                            onOpenSettings = { showSettings = true },
-                            onRequestNotificationPermissionIfNeeded = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    val granted = ContextCompat.checkSelfPermission(
-                                        this@MainActivity,
-                                        Manifest.permission.POST_NOTIFICATIONS
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                    if (!granted) {
-                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    vm.updateSyncToGoogleCalendar(enable)
+                                },
+                                onGoogleSyncYearsAheadChanged = vm::updateGoogleSyncYearsAhead,
+                                onSyncAllToGoogleCalendarNow = {
+                                    if (GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
+                                        vm.syncAllEventsToGoogleCalendarNow()
+                                    } else {
+                                        pendingEventForGCalSync = null
+                                        calendarPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.READ_CALENDAR,
+                                                Manifest.permission.WRITE_CALENDAR
+                                            )
+                                        )
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

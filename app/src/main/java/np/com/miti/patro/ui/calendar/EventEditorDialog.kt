@@ -1,12 +1,15 @@
 package np.com.miti.patro.ui.calendar
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -26,23 +29,23 @@ import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.model.BsDate
+import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
-import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextTextInput
 import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EventEditorDialog(
-    initialBsDate: BsDate,
-    existingEvent: EventEntity?,
+    anchorBsDate: BsDate,
+    existingEvent: EventEntity? = null,
+    defaultStrategy: MissingDayStrategy,
     defaultReminderHour: Int,
     defaultReminderMinute: Int,
-    missingDayStrategy: MissingDayStrategy,
+    defaultReminderDaysBefore: Int,
     useDevanagari: Boolean,
     onDismiss: () -> Unit,
     onSave: (EventEntity) -> Unit
@@ -51,201 +54,230 @@ fun EventEditorDialog(
     val ne = useDevanagari
 
     var title by remember { mutableStateOf(existingEvent?.title ?: "") }
-    var note by remember { mutableStateOf(existingEvent?.note ?: "") }
-    var bsMonth by remember { mutableIntStateOf(existingEvent?.bsMonth ?: initialBsDate.month) }
-    var bsDay by remember { mutableIntStateOf(existingEvent?.bsDay ?: initialBsDate.day) }
-    var startBsYear by remember { mutableIntStateOf(existingEvent?.startBsYear ?: initialBsDate.year) }
+    var notes by remember { mutableStateOf(existingEvent?.notes ?: "") }
+    var bsMonth by remember { mutableIntStateOf(existingEvent?.bsMonth ?: anchorBsDate.month) }
+    var bsDay by remember { mutableIntStateOf(existingEvent?.bsDay ?: anchorBsDate.day) }
+    var selectedColor by remember {
+        mutableStateOf(
+            existingEvent?.resolvedColor
+                ?: if (existingEvent?.isPersonalHoliday == true) EventColor.RED else EventColor.GREEN
+        )
+    }
     var isPersonalHoliday by remember { mutableStateOf(existingEvent?.isPersonalHoliday ?: false) }
+    var missingDayStrategy by remember {
+        mutableStateOf(existingEvent?.missingDayStrategy ?: defaultStrategy)
+    }
     var reminderEnabled by remember { mutableStateOf(existingEvent?.reminderEnabled ?: true) }
-    var reminderDaysBefore by remember { mutableIntStateOf(existingEvent?.reminderDaysBefore ?: 0) }
     var reminderHour by remember { mutableIntStateOf(existingEvent?.reminderHour ?: defaultReminderHour) }
     var reminderMinute by remember { mutableIntStateOf(existingEvent?.reminderMinute ?: defaultReminderMinute) }
-    var showError by remember { mutableStateOf(false) }
+    var reminderDaysBefore by remember {
+        mutableIntStateOf(existingEvent?.reminderDaysBefore ?: defaultReminderDaysBefore)
+    }
+
+    val scrollState = rememberScrollState()
 
     Dialog(onDismissRequest = onDismiss) {
-        PlaintextBox(
-            borderColor = palette.purple,
-            backgroundColor = palette.background,
-            headerText = if (existingEvent == null) {
-                AppStrings.addEventDialogHeader(ne)
-            } else {
-                AppStrings.editEventDialogHeader(ne)
-            },
-            headerColor = palette.purple,
-            modifier = Modifier.verticalScroll(rememberScrollState())
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.background)
+                .border(1.dp, palette.foreground)
+                .padding(12.dp)
+                .verticalScroll(scrollState)
         ) {
-            // 1. Plaintext `> ` Title input with `-------` rule
             Text(
-                text = AppStrings.eventTitleLabel(ne),
+                text = if (existingEvent == null) {
+                    AppStrings.newEventHeader(ne)
+                } else {
+                    AppStrings.editEventHeader(ne)
+                },
+                color = palette.purple,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                color = palette.foreground
+                fontSize = 14.sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            PlaintextTextInput(
-                value = title,
-                onValueChange = {
-                    title = it
-                    showError = false
-                },
-                placeholder = AppStrings.eventTitlePlaceholder(ne),
-                isError = showError,
-                singleLine = true
-            )
-            if (showError) {
-                Text(
-                    text = AppStrings.eventTitleError(ne),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = palette.red
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
             AsciiHorizontalRule()
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 2. BS Month & Day selector (repeats every BS year)
             Text(
-                text = AppStrings.repeatsEveryBsYearOn(ne),
+                text = AppStrings.bsAnchorDateLabel(ne),
+                color = palette.comment,
                 fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                color = palette.cyan
+                fontSize = 11.sp
             )
             Spacer(modifier = Modifier.height(4.dp))
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                for (m in 1..12) {
-                    val mLabel = BsCalendarData.getShortMonthName(m, ne)
-                    val selected = (m == bsMonth)
-                    BracketButton(
-                        text = if (selected) "*$mLabel*" else "[$mLabel]",
-                        onClick = { bsMonth = m },
-                        color = if (selected) palette.purple else palette.foreground,
-                        isHighlighted = selected
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Day stepper (1..32) + Start BS Year stepper
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BracketButton(label = "-", onClick = {
+                        bsMonth = if (bsMonth > 1) bsMonth - 1 else 12
+                    })
                     Text(
-                        text = AppStrings.bsDayLabel(ne),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = palette.foreground
-                    )
-                    BracketButton(
-                        text = "[-]",
-                        onClick = { bsDay = if (bsDay > 1) bsDay - 1 else 32 },
-                        color = palette.cyan
-                    )
-                    Text(
-                        text = BsCalendarData.formatNumber(bsDay, ne, padWidth = 2),
+                        text = BsCalendarData.monthName(bsMonth, ne),
+                        color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = palette.yellow
+                        fontSize = 13.sp
                     )
-                    BracketButton(
-                        text = "[+]",
-                        onClick = { bsDay = if (bsDay < 32) bsDay + 1 else 1 },
-                        color = palette.cyan
-                    )
+                    BracketButton(label = "+", onClick = {
+                        bsMonth = if (bsMonth < 12) bsMonth + 1 else 1
+                    })
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BracketButton(label = "-", onClick = {
+                        bsDay = if (bsDay > 1) bsDay - 1 else 32
+                    })
                     Text(
-                        text = AppStrings.fromYearLabel(ne),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = palette.comment
-                    )
-                    BracketButton(
-                        text = "[-]",
-                        onClick = {
-                            startBsYear = (startBsYear - 1).coerceAtLeast(BsCalendarData.MIN_YEAR)
-                        },
-                        color = palette.comment
-                    )
-                    Text(
-                        text = BsCalendarData.formatNumber(startBsYear, ne),
+                        text = "${ if (ne) "गते" else "Day" } ${BsCalendarData.formatNumber(bsDay, ne)}",
+                        color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = palette.foreground
+                        fontSize = 13.sp
                     )
-                    BracketButton(
-                        text = "[+]",
-                        onClick = {
-                            startBsYear = (startBsYear + 1).coerceAtMost(BsCalendarData.MAX_YEAR)
-                        },
-                        color = palette.comment
-                    )
+                    BracketButton(label = "+", onClick = {
+                        bsDay = if (bsDay < 32) bsDay + 1 else 1
+                    })
                 }
             }
 
-            if (bsDay >= 30) {
-                Spacer(modifier = Modifier.height(4.dp))
-                val mName = BsCalendarData.getMonthName(bsMonth, ne)
-                val dStr = BsCalendarData.formatNumber(bsDay, ne)
-                val ruleLabel = missingDayStrategy.label(ne)
-                Text(
-                    text = AppStrings.shortMonthNote(ne, mName, dStr, ruleLabel),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    color = palette.orange
-                )
-            }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            PlaintextTextInput(
+                label = AppStrings.eventTitleLabel(ne),
+                value = title,
+                onValueChange = { title = it },
+                placeholder = AppStrings.eventTitlePlaceholder(ne),
+                singleLine = true
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(6.dp))
 
-            // 3. Plaintext `> ` Note input with `-------` rule
-            Text(
-                text = AppStrings.notesLabel(ne),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = palette.foreground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
             PlaintextTextInput(
-                value = note,
-                onValueChange = { note = it },
-                placeholder = AppStrings.notesPlaceholder(ne),
+                label = AppStrings.eventNotesLabel(ne),
+                value = notes,
+                onValueChange = { notes = it },
+                placeholder = AppStrings.eventNotesPlaceholder(ne),
                 singleLine = false
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Event Color Picker (8 colors in a 4x2 plaintext grid)
+            Text(
+                text = AppStrings.eventColorLabel(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            val allColors = EventColor.values()
+            for (row in 0 until 2) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (col in 0 until 4) {
+                        val colorOption = allColors[row * 4 + col]
+                        val isSelected = selectedColor == colorOption
+                        val swatchColor = colorOption.composeColor(palette)
+                        val labelText = colorOption.label(ne)
+                        Text(
+                            text = if (isSelected) "[*● $labelText*]" else "[● $labelText]",
+                            color = swatchColor,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 10.sp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(if (isSelected) palette.selection else palette.surface)
+                                .border(1.dp, if (isSelected) swatchColor else palette.comment)
+                                .clickable { selectedColor = colorOption }
+                                .padding(vertical = 5.dp, horizontal = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            PlaintextToggleRow(
+                label = AppStrings.markHolidayLabel(ne),
+                checked = isPersonalHoliday,
+                onCheckedChange = { checked ->
+                    isPersonalHoliday = checked
+                    if (checked && selectedColor == EventColor.GREEN) {
+                        selectedColor = EventColor.RED
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
             AsciiHorizontalRule()
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 4. Mark as personal holiday toggle (`[x]` / `[ ]`)
-            PlaintextToggleRow(
-                label = AppStrings.markAsHolidayToggle(ne),
-                checked = isPersonalHoliday,
-                onToggle = { isPersonalHoliday = it }
+            Text(
+                text = AppStrings.missingDayRuleHeader(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
             )
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // 5. Offline Notification / Reminder toggle (`[x]` / `[ ]`)
+            MissingDayStrategy.values().forEach { strategy ->
+                val selected = missingDayStrategy == strategy
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { missingDayStrategy = strategy }
+                        .padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (selected) "(*) " else "( ) ",
+                        color = if (selected) palette.cyan else palette.comment,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = strategy.label(ne),
+                        color = if (selected) palette.foreground else palette.comment,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = AppStrings.reminderHeader(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
+            )
             PlaintextToggleRow(
-                label = AppStrings.offlineNotificationToggle(ne),
+                label = AppStrings.enableReminderLabel(ne),
                 checked = reminderEnabled,
-                onToggle = { reminderEnabled = it }
+                onCheckedChange = { reminderEnabled = it }
             )
 
             if (reminderEnabled) {
@@ -256,92 +288,114 @@ fun EventEditorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = AppStrings.notifyWhenLabel(ne),
+                        text = AppStrings.reminderTimingLabel(ne),
+                        color = palette.foreground,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = palette.comment
+                        fontSize = 11.sp
                     )
-                    listOf(0, 1, 3).forEach { days ->
-                        val label = AppStrings.notifyOffsetOption(ne, days)
-                        val selected = (reminderDaysBefore == days)
-                        BracketButton(
-                            text = if (selected) "*$label*" else "[$label]",
-                            onClick = { reminderDaysBefore = days },
-                            color = if (selected) palette.pink else palette.foreground,
-                            isHighlighted = selected
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(
+                            0 to AppStrings.sameDay(ne),
+                            1 to AppStrings.oneDayBefore(ne),
+                            2 to AppStrings.twoDaysBefore(ne),
+                            7 to AppStrings.sevenDaysBefore(ne)
+                        ).forEach { (days, label) ->
+                            BracketButton(
+                                label = label,
+                                highlighted = reminderDaysBefore == days,
+                                onClick = { reminderDaysBefore = days }
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = AppStrings.time24hLabel(ne),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = palette.comment
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        BracketButton(
-                            text = AppStrings.minusHourBtn(ne),
-                            onClick = { reminderHour = (reminderHour + 23) % 24 },
-                            color = palette.cyan
-                        )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = BsCalendarData.formatTime24h(reminderHour, reminderMinute, ne),
+                            text = AppStrings.hourLabel(ne),
+                            color = palette.foreground,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                        BracketButton(label = "-", onClick = {
+                            reminderHour = (reminderHour + 23) % 24
+                        })
+                        Text(
+                            text = BsCalendarData.formatNumberPadded(reminderHour, ne),
+                            color = palette.cyan,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = palette.pink
+                            fontSize = 12.sp
                         )
-                        BracketButton(
-                            text = AppStrings.plusHourBtn(ne),
-                            onClick = { reminderHour = (reminderHour + 1) % 24 },
-                            color = palette.cyan
+                        BracketButton(label = "+", onClick = {
+                            reminderHour = (reminderHour + 1) % 24
+                        })
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = AppStrings.minuteLabel(ne),
+                            color = palette.foreground,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
                         )
-                        BracketButton(
-                            text = AppStrings.plus15MinBtn(ne),
-                            onClick = { reminderMinute = (reminderMinute + 15) % 60 },
-                            color = palette.cyan
+                        BracketButton(label = "-15", onClick = {
+                            reminderMinute = (reminderMinute + 45) % 60
+                        })
+                        Text(
+                            text = BsCalendarData.formatNumberPadded(reminderMinute, ne),
+                            color = palette.cyan,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
                         )
+                        BracketButton(label = "+15", onClick = {
+                            reminderMinute = (reminderMinute + 15) % 60
+                        })
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             AsciiHorizontalRule()
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 6. Save / Cancel buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.End
             ) {
                 BracketButton(
-                    text = AppStrings.cancelBtn(ne),
+                    label = AppStrings.cancelBtn(ne),
                     onClick = onDismiss,
-                    color = palette.comment
+                    textColor = palette.comment
                 )
+                Spacer(modifier = Modifier.padding(horizontal = 6.dp))
                 BracketButton(
-                    text = AppStrings.saveEventBtn(ne),
+                    label = AppStrings.saveBtn(ne),
                     onClick = {
-                        val trimmed = title.trim()
-                        if (trimmed.isEmpty()) {
-                            showError = true
-                        } else {
+                        val trimmedTitle = title.trim()
+                        if (trimmedTitle.isNotEmpty()) {
                             onSave(
                                 EventEntity(
                                     id = existingEvent?.id ?: 0L,
-                                    title = trimmed,
-                                    note = note.trim(),
+                                    title = trimmedTitle,
+                                    note = notes.trim(),
                                     bsMonth = bsMonth,
                                     bsDay = bsDay,
-                                    startBsYear = startBsYear,
+                                    startBsYear = existingEvent?.startBsYear ?: anchorBsDate.year,
                                     isPersonalHoliday = isPersonalHoliday,
+                                    colorKey = selectedColor.key,
                                     reminderEnabled = reminderEnabled,
                                     reminderDaysBefore = reminderDaysBefore,
                                     reminderHour = reminderHour,
@@ -350,8 +404,8 @@ fun EventEditorDialog(
                             )
                         }
                     },
-                    color = palette.green,
-                    isHighlighted = true
+                    textColor = palette.green,
+                    highlighted = title.isNotBlank()
                 )
             }
         }

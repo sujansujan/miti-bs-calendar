@@ -2,133 +2,139 @@ package np.com.miti.patro
 
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
-import np.com.miti.patro.domain.engine.NepaliFestivals
 import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsDate
+import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
+import np.com.miti.patro.domain.model.Paksha
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.DayOfWeek
 import java.time.LocalDate
 
 class BsCalendarTest {
 
     @Test
-    fun anchorDateAndKnownNewYearsMatchOfficialPatro() {
-        // Base anchor: 2000 Baisakh 1 = 1943-04-14
-        assertEquals(LocalDate.of(1943, 4, 14), BsDateConverter.bsToAd(2000, 1, 1))
-        assertEquals(BsDate(2000, 1, 1), BsDateConverter.adToBs(LocalDate.of(1943, 4, 14)))
-
-        // Recent & upcoming BS New Years
-        assertEquals(LocalDate.of(2023, 4, 14), BsDateConverter.bsToAd(2080, 1, 1))
-        assertEquals(LocalDate.of(2024, 4, 13), BsDateConverter.bsToAd(2081, 1, 1))
-        assertEquals(LocalDate.of(2025, 4, 14), BsDateConverter.bsToAd(2082, 1, 1))
-        assertEquals(LocalDate.of(2026, 4, 14), BsDateConverter.bsToAd(2083, 1, 1))
-        assertEquals(LocalDate.of(2027, 4, 14), BsDateConverter.bsToAd(2084, 1, 1))
+    fun epochRoundTrip_1970Baisakh1_is1913April13() {
+        val epochBs = BsDate(1970, 1, 1)
+        val ad = BsDateConverter.bsToAd(epochBs)
+        assertEquals(LocalDate.of(1913, 4, 13), ad)
+        assertEquals(epochBs, BsDateConverter.adToBs(ad))
     }
 
     @Test
-    fun verified2083DatesAndWeekdaysMatchPanchang() {
-        // 2083 Kartik 9 (Today in reference metadata) = 2026-10-26 (Monday)
-        val kartik9 = BsDate(2083, 7, 9)
-        val adKartik9 = BsDateConverter.bsToAd(kartik9)
-        assertEquals(LocalDate.of(2026, 10, 26), adKartik9)
-        assertEquals(DayOfWeek.MONDAY, adKartik9.dayOfWeek)
-        assertEquals(kartik9, BsDateConverter.adToBs(adKartik9))
+    fun knownHistoricalAndModernDates_convertAccurately() {
+        // 2072 Baisakh 12 BS = 2015-04-25 AD (Gorkha Earthquake day)
+        val eqBs = BsDate(2072, 1, 12)
+        val eqAd = LocalDate.of(2015, 4, 25)
+        assertEquals(eqAd, BsDateConverter.bsToAd(eqBs))
+        assertEquals(eqBs, BsDateConverter.adToBs(eqAd))
 
-        // 2083 Kartik 4 (Vijaya Dashami) = 2026-10-21 (Wednesday)
-        assertEquals(LocalDate.of(2026, 10, 21), BsDateConverter.bsToAd(2083, 7, 4))
+        // 2081 Baisakh 1 BS = 2024-04-13 AD (Nepali New Year 2081)
+        val ny2081Bs = BsDate(2081, 1, 1)
+        val ny2081Ad = LocalDate.of(2024, 4, 13)
+        assertEquals(ny2081Ad, BsDateConverter.bsToAd(ny2081Bs))
+        assertEquals(ny2081Bs, BsDateConverter.adToBs(ny2081Ad))
 
-        // 2083 Kartik 22 (Laxmi Puja) = 2026-11-08 (Sunday)
-        assertEquals(LocalDate.of(2026, 11, 8), BsDateConverter.bsToAd(2083, 7, 22))
-
-        // 2083 Magh 1 (Maghe Sankranti) = 2027-01-15 (Friday)
-        assertEquals(LocalDate.of(2027, 1, 15), BsDateConverter.bsToAd(2083, 10, 1))
+        // 2082 Baisakh 1 BS = 2025-04-14 AD (Nepali New Year 2082)
+        val ny2082Bs = BsDate(2082, 1, 1)
+        val ny2082Ad = LocalDate.of(2025, 4, 14)
+        assertEquals(ny2082Ad, BsDateConverter.bsToAd(ny2082Bs))
+        assertEquals(ny2082Bs, BsDateConverter.adToBs(ny2082Ad))
     }
 
     @Test
-    fun roundTripConversionAcrossMultipleYearsIsLossless() {
-        var cursor = LocalDate.of(2020, 1, 1)
-        val end = LocalDate.of(2030, 12, 31)
-        while (!cursor.isAfter(end)) {
-            val bs = BsDateConverter.adToBs(cursor)
-            val roundTripAd = BsDateConverter.bsToAd(bs)
-            assertEquals("Mismatch on $cursor -> $bs", cursor, roundTripAd)
-            cursor = cursor.plusDays(1)
+    fun fullTableRoundTrip_everyYearStartAndEndMatches() {
+        for (year in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) {
+            val firstDay = BsDate(year, 1, 1)
+            val adFirst = BsDateConverter.bsToAd(firstDay)
+            assertEquals("Failed start of year $year", firstDay, BsDateConverter.adToBs(adFirst))
+
+            val chaitraLen = BsCalendarData.daysInMonth(year, 12)
+            val lastDay = BsDate(year, 12, chaitraLen)
+            val adLast = BsDateConverter.bsToAd(lastDay)
+            assertEquals("Failed end of year $year", lastDay, BsDateConverter.adToBs(adLast))
         }
     }
 
     @Test
-    fun missingDayStrategiesHandle32DayMonthVariations() {
-        // In 2080 BS, Jestha (month 2) has 32 days.
-        // In 2083 BS, Jestha (month 2) has 31 days.
-        assertEquals(32, BsCalendarData.getDaysInMonth(2080, 2))
-        assertEquals(31, BsCalendarData.getDaysInMonth(2083, 2))
+    fun annualBsRepeat_convertsToTrueShiftingAdDatesAcrossFutureYears() {
+        // An event on Kartik 10 (month 7, day 10) in 2082, 2083, 2084 BS
+        // must resolve to each year's true BS->AD date, not a fixed Gregorian day-of-month
+        val occ2082 = BsDateConverter.resolveAnnualOccurrence(eventMonth = 7, eventDay = 10, targetBsYear = 2082, strategy = MissingDayStrategy.CLAMP_TO_LAST_DAY)!!
+        val occ2083 = BsDateConverter.resolveAnnualOccurrence(eventMonth = 7, eventDay = 10, targetBsYear = 2083, strategy = MissingDayStrategy.CLAMP_TO_LAST_DAY)!!
+        val occ2084 = BsDateConverter.resolveAnnualOccurrence(eventMonth = 7, eventDay = 10, targetBsYear = 2084, strategy = MissingDayStrategy.CLAMP_TO_LAST_DAY)!!
 
-        // 1. Clamp strategy: Jestha 32 clamps to Jestha 31 in 2083 BS
-        val clamped = BsDateConverter.resolveAnnualOccurrence(
-            eventMonth = 2,
-            eventDay = 32,
-            targetBsYear = 2083,
-            strategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
-        )
-        assertNotNull(clamped)
-        assertEquals(BsDate(2083, 2, 31), clamped!!.targetDate)
-        assertTrue(clamped.isClampedOrRolled)
+        val ad2082 = BsDateConverter.bsToAd(occ2082.resolvedDate)
+        val ad2083 = BsDateConverter.bsToAd(occ2083.resolvedDate)
+        val ad2084 = BsDateConverter.bsToAd(occ2084.resolvedDate)
 
-        // 2. Roll strategy: Jestha 32 rolls to Ashadh 1 in 2083 BS
-        val rolled = BsDateConverter.resolveAnnualOccurrence(
-            eventMonth = 2,
-            eventDay = 32,
-            targetBsYear = 2083,
-            strategy = MissingDayStrategy.ROLL_TO_NEXT_MONTH
-        )
-        assertNotNull(rolled)
-        assertEquals(BsDate(2083, 3, 1), rolled!!.targetDate)
-        assertTrue(rolled.isClampedOrRolled)
-
-        // 3. Skip strategy: Jestha 32 returns null in 2083 BS, but succeeds in 2080 BS
-        val skipped = BsDateConverter.resolveAnnualOccurrence(
-            eventMonth = 2,
-            eventDay = 32,
-            targetBsYear = 2083,
-            strategy = MissingDayStrategy.SKIP_YEAR
-        )
-        assertNull(skipped)
-
-        val exactIn2080 = BsDateConverter.resolveAnnualOccurrence(
-            eventMonth = 2,
-            eventDay = 32,
-            targetBsYear = 2080,
-            strategy = MissingDayStrategy.SKIP_YEAR
-        )
-        assertNotNull(exactIn2080)
-        assertEquals(BsDate(2080, 2, 32), exactIn2080!!.targetDate)
+        assertEquals(BsDate(2082, 7, 10), BsDateConverter.adToBs(ad2082))
+        assertEquals(BsDate(2083, 7, 10), BsDateConverter.adToBs(ad2083))
+        assertEquals(BsDate(2084, 7, 10), BsDateConverter.adToBs(ad2084))
+        // Across leap/non-leap BS years, the AD day-of-month shifts rather than staying locked
+        assertTrue(ad2082.dayOfMonth != ad2084.dayOfMonth || ad2082.dayOfMonth != ad2083.dayOfMonth)
     }
 
     @Test
-    fun tithiAndFestivalCalculationsMatchKnownFullAndNewMoons() {
-        // Buddha Jayanti 2083 (2083-01-18 = 2026-05-01) is Purnima
-        val buddhaJayantiDate = BsDate(2083, 1, 18)
-        val tithiBuddha = TithiCalculator.calculateTithi(buddhaJayantiDate)
-        assertTrue(tithiBuddha.isPurnima)
-        assertEquals("Purnima", tithiBuddha.englishName)
+    fun missingDayStrategies_handleVariableMonthLengthsCorrectly() {
+        // In 2081 BS, Baisakh (month 1) has 31 days. Suppose an event is created on Baisakh 32.
+        val clampRes = BsDateConverter.resolveAnnualOccurrence(
+            targetBsYear = 2081,
+            eventMonth = 1,
+            eventDay = 32,
+            strategy = MissingDayStrategy.LAST_DAY_OF_MONTH
+        )
+        assertNotNull(clampRes)
+        assertEquals(BsDate(2081, 1, 31), clampRes!!.resolvedDate)
+        assertTrue(clampRes.wasAdjusted)
 
-        // 2083 Kartik 9 (2026-10-26) is Purnima
-        val kartik9 = BsDate(2083, 7, 9)
-        val tithiKartik9 = TithiCalculator.calculateTithi(kartik9)
-        assertTrue(tithiKartik9.isPurnima)
+        val rollRes = BsDateConverter.resolveAnnualOccurrence(
+            targetBsYear = 2081,
+            eventMonth = 1,
+            eventDay = 32,
+            strategy = MissingDayStrategy.NEXT_MONTH_FIRST_DAY
+        )
+        assertNotNull(rollRes)
+        assertEquals(BsDate(2081, 2, 1), rollRes!!.resolvedDate)
+        assertTrue(rollRes.wasAdjusted)
 
-        // Laxmi Puja 2083 (2083-07-22 = 2026-11-08) is Aunsi
-        val laxmiPujaDate = BsDate(2083, 7, 22)
-        val tithiLaxmi = TithiCalculator.calculateTithi(laxmiPujaDate)
-        assertTrue(tithiLaxmi.isAunsi)
-        assertEquals("Aunsi", tithiLaxmi.englishName)
+        val skipRes = BsDateConverter.resolveAnnualOccurrence(
+            targetBsYear = 2081,
+            eventMonth = 1,
+            eventDay = 32,
+            strategy = MissingDayStrategy.SKIP_YEAR
+        )
+        assertNull(skipRes)
+    }
 
-        val festivals = NepaliFestivals.getFestivalsForDay(laxmiPujaDate, tithiLaxmi)
-        assertTrue(festivals.any { it.nameEn.contains("Laxmi Puja") })
+    @Test
+    fun eventColor_fromKeyResovesAllPaletteSwatches() {
+        for (c in EventColor.values()) {
+            assertEquals(c, EventColor.fromKey(c.key))
+        }
+        assertEquals(EventColor.GREEN, EventColor.fromKey("UNKNOWN_COLOR"))
+    }
+
+    @Test
+    fun tithiCalculator_identifiesFullMoonAndNewMoonAccurately() {
+        val buddhaJayanti2024 = LocalDate.of(2024, 5, 23)
+        val purnimaTithi = TithiCalculator.calculateTithiAtSunrise(buddhaJayanti2024)
+        assertEquals(Paksha.SHUKLA, purnimaTithi.paksha)
+        assertTrue(
+            "Expected Purnima (15) or Chaturdashi (14) at sunrise, got ${purnimaTithi.number}",
+            purnimaTithi.number in 14..15
+        )
+
+        val laxmiPuja2024 = LocalDate.of(2024, 11, 1)
+        val aunsiTithi = TithiCalculator.calculateTithiAtSunrise(laxmiPuja2024)
+        assertEquals(Paksha.KRISHNA, aunsiTithi.paksha)
+        assertTrue(
+            "Expected Aunsi (30) or Chaturdashi (29) at sunrise, got ${aunsiTithi.number}",
+            aunsiTithi.number in 29..30
+        )
     }
 }

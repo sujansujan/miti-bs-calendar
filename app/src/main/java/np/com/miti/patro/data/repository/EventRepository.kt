@@ -14,14 +14,20 @@ data class ResolvedEventInstance(
     val effectiveAdDate: LocalDate,
     val isClampedOrRolled: Boolean,
     val yearsElapsed: Int
-)
+) {
+    val event: EventEntity get() = entity
+    val resolvedBsDate: BsDate get() = effectiveBsDate
+    val wasAdjustedForShortMonth: Boolean get() = isClampedOrRolled
+}
 
 class EventRepository(
     private val eventDao: EventDao
 ) {
     val allEventsFlow: Flow<List<EventEntity>> = eventDao.observeAllEvents()
+    val allEvents: Flow<List<EventEntity>> get() = allEventsFlow
 
     suspend fun getAllEventsOnce(): List<EventEntity> = eventDao.getAllEventsOnce()
+    suspend fun getAllEventsSnapshot(): List<EventEntity> = eventDao.getAllEventsOnce()
 
     suspend fun getEventById(id: Long): EventEntity? = eventDao.getEventById(id)
 
@@ -38,11 +44,20 @@ class EventRepository(
         eventDao.deleteEvent(event)
     }
 
+    fun resolveEventsForBsMonth(
+        allEvents: List<EventEntity>,
+        bsYear: Int,
+        bsMonth: Int,
+        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
+    ): List<ResolvedEventInstance> {
+        return resolveEventsForMonth(allEvents, bsYear, bsMonth, strategy).values.flatten()
+    }
+
     fun resolveEventsForMonth(
         allEvents: List<EventEntity>,
         bsYear: Int,
         bsMonth: Int,
-        strategy: MissingDayStrategy
+        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
     ): Map<Int, List<ResolvedEventInstance>> {
         val map = mutableMapOf<Int, MutableList<ResolvedEventInstance>>()
 

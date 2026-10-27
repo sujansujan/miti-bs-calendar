@@ -146,6 +146,8 @@ object TithiCalculator {
         LunarTerm(2, 0, 3, 0, 294)
     )
 
+    fun calculateTithiAtSunrise(adDate: LocalDate): TithiInfo = calculateTithi(BsDateConverter.adToBs(adDate), adDate)
+
     fun calculateTithi(bsDate: BsDate, adDate: LocalDate = BsDateConverter.bsToAd(bsDate)): TithiInfo {
         val jd = toJulianDay(adDate.year, adDate.monthValue, adDate.dayOfMonth, 0.0)
         val sunLon = sunApparentLongitude(jd)

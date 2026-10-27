@@ -12,6 +12,11 @@ import java.time.temporal.ChronoUnit
  */
 object BsDateConverter {
 
+    /**
+     * Returns 0 for Sunday, 1 for Monday, ..., 6 for Saturday.
+     */
+    fun dayOfWeekIndex(adDate: LocalDate): Int = adDate.dayOfWeek.value % 7
+
     fun bsToAd(bsDate: BsDate): LocalDate = bsToAd(bsDate.year, bsDate.month, bsDate.day)
 
     fun bsToAd(bsYear: Int, bsMonth: Int, bsDay: Int): LocalDate {

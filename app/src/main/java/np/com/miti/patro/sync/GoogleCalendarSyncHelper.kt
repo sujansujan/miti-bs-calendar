@@ -4,12 +4,10 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import np.com.miti.patro.data.local.EventEntity
-import np.com.miti.patro.data.repository.ResolvedEventInstance
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.model.MissingDayStrategy
@@ -20,6 +18,17 @@ import java.util.TimeZone
 /**
  * Synchronizes repeating Bikram Sambat (BS) events with the device's Google Calendar
  * via Android's local CalendarContract ContentProvider (zero INTERNET permission required).
+ *
+ * CRITICAL BS RECURRENCE DESIGN:
+ * Because Bikram Sambat repeating dates fall on DIFFERENT Gregorian (AD) dates every year
+ * (and BS month lengths vary from 29 to 32 days), a standard Google Calendar yearly rule
+ * (`RRULE:FREQ=YEARLY`) would wrongly repeat on the same AD date every year.
+ *
+ * Instead, when you tap `[+GCAL]` on an event (or enable Auto-Sync in Settings), this helper
+ * loops through every upcoming BS year `[startYear .. currentBsYear + yearsAhead]`, resolves
+ * the exact BS date for that year using [BsDateConverter.resolveAnnualOccurrence], converts
+ * each BS year's occurrence to its true Gregorian (AD) date via [BsDateConverter.bsToAd], and
+ * inserts/updates each year's occurrence individually in Google Calendar with `RRULE = null`.
  */
 object GoogleCalendarSyncHelper {
 
@@ -29,6 +38,7 @@ object GoogleCalendarSyncHelper {
         val success: Boolean,
         val syncedOccurrences: Int,
         val calendarDisplayName: String? = null,
+        val sampleDatesPreview: String = "",
         val errorCode: ErrorCode? = null
     )
 
@@ -101,11 +111,15 @@ object GoogleCalendarSyncHelper {
             .firstOrNull()?.first
     }
 
+    /**
+     * Syncs a single BS repeating event across all upcoming BS years `[start .. currentBsYear + yearsAhead]`
+     * into Google Calendar so each future BS year lands on its exact converted AD date.
+     */
     fun syncSingleEvent(
         context: Context,
         event: EventEntity,
         strategy: MissingDayStrategy,
-        yearsAhead: Int = 5,
+        yearsAhead: Int = 15,
         useDevanagari: Boolean = false
     ): SyncResult {
         if (!hasCalendarPermissions(context)) {
@@ -115,7 +129,7 @@ object GoogleCalendarSyncHelper {
             ?: return SyncResult(false, 0, errorCode = ErrorCode.NO_WRITABLE_CALENDAR)
 
         return try {
-            val count = upsertEventOccurrences(
+            val (count, preview) = upsertEventOccurrences(
                 context = context,
                 calendarId = targetCal.id,
                 event = event,
@@ -123,17 +137,26 @@ object GoogleCalendarSyncHelper {
                 yearsAhead = yearsAhead,
                 useDevanagari = useDevanagari
             )
-            SyncResult(true, count, calendarDisplayName = targetCal.displayName)
+            SyncResult(
+                success = true,
+                syncedOccurrences = count,
+                calendarDisplayName = targetCal.displayName,
+                sampleDatesPreview = preview
+            )
         } catch (_: Exception) {
             SyncResult(false, 0, errorCode = ErrorCode.PROVIDER_ERROR)
         }
     }
 
+    /**
+     * Syncs all saved BS repeating events across `[currentBsYear .. currentBsYear + yearsAhead]`
+     * into Google Calendar on their exact per-year BS->AD converted dates.
+     */
     fun syncAllEvents(
         context: Context,
         events: List<EventEntity>,
         strategy: MissingDayStrategy,
-        yearsAhead: Int = 5,
+        yearsAhead: Int = 15,
         useDevanagari: Boolean = false
     ): SyncResult {
         if (!hasCalendarPermissions(context)) {
@@ -144,8 +167,9 @@ object GoogleCalendarSyncHelper {
 
         return try {
             var totalSynced = 0
+            var firstPreview = ""
             for (event in events) {
-                totalSynced += upsertEventOccurrences(
+                val (c, p) = upsertEventOccurrences(
                     context = context,
                     calendarId = targetCal.id,
                     event = event,
@@ -153,8 +177,17 @@ object GoogleCalendarSyncHelper {
                     yearsAhead = yearsAhead,
                     useDevanagari = useDevanagari
                 )
+                totalSynced += c
+                if (firstPreview.isEmpty() && p.isNotEmpty()) {
+                    firstPreview = p
+                }
             }
-            SyncResult(true, totalSynced, calendarDisplayName = targetCal.displayName)
+            SyncResult(
+                success = true,
+                syncedOccurrences = totalSynced,
+                calendarDisplayName = targetCal.displayName,
+                sampleDatesPreview = firstPreview
+            )
         } catch (_: Exception) {
             SyncResult(false, 0, errorCode = ErrorCode.PROVIDER_ERROR)
         }
@@ -179,13 +212,16 @@ object GoogleCalendarSyncHelper {
         strategy: MissingDayStrategy,
         yearsAhead: Int,
         useDevanagari: Boolean
-    ): Int {
+    ): Pair<Int, String> {
         val todayAd = LocalDate.now(NEPAL_ZONE)
         val currentBsYear = BsDateConverter.adToBs(todayAd).year
+        val startYear = minOf(currentBsYear, event.startBsYear).coerceAtLeast(BsCalendarData.MIN_YEAR)
         val endBsYear = (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
 
         var count = 0
-        for (bsYear in currentBsYear..endBsYear) {
+        val previewSamples = mutableListOf<String>()
+
+        for (bsYear in startYear..endBsYear) {
             if (bsYear < event.startBsYear) continue
 
             val resolvedOcc = BsDateConverter.resolveAnnualOccurrence(
@@ -196,7 +232,13 @@ object GoogleCalendarSyncHelper {
             ) ?: continue
 
             val resolvedBsDate = resolvedOcc.targetDate
+            // Convert THIS target BS year's BS date to its exact Gregorian (AD) date
             val adDate = BsDateConverter.bsToAd(resolvedBsDate)
+
+            if (bsYear >= currentBsYear && previewSamples.size < 3) {
+                previewSamples.add("$bsYear BS -> $adDate AD")
+            }
+
             val startMillis = adDate
                 .atTime(event.reminderHour.coerceIn(0, 23), event.reminderMinute.coerceIn(0, 59))
                 .atZone(NEPAL_ZONE)
@@ -210,9 +252,9 @@ object GoogleCalendarSyncHelper {
             val bsYearStr = BsCalendarData.formatNumber(resolvedBsDate.year, useDevanagari)
 
             val descriptionHeader = if (useDevanagari) {
-                "बिक्रम सम्बत वार्षिक कार्यक्रम: $bsMonthName $bsDayStr, $bsYearStr बि.सं."
+                "बिक्रम सम्बत वार्षिक कार्यक्रम: $bsMonthName $bsDayStr, $bsYearStr बि.सं. (इस्वी: $adDate)"
             } else {
-                "Bikram Sambat Annual Event: $bsMonthName $bsDayStr, $bsYearStr BS"
+                "Bikram Sambat Annual Event: $bsMonthName $bsDayStr, $bsYearStr BS (Gregorian: $adDate AD)"
             }
             val fullDescription = buildString {
                 append(descriptionHeader)
@@ -224,13 +266,17 @@ object GoogleCalendarSyncHelper {
 
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
+                put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr, $bsYearStr BS)")
                 put(CalendarContract.Events.DESCRIPTION, fullDescription)
                 put(CalendarContract.Events.DTSTART, startMillis)
                 put(CalendarContract.Events.DTEND, endMillis)
+                // Explicitly clear RRULE/RDATE so Google Calendar NEVER repeats on the same AD date
+                putNull(CalendarContract.Events.RRULE)
+                putNull(CalendarContract.Events.RDATE)
                 put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getTimeZone("Asia/Kathmandu").id)
                 put(CalendarContract.Events.UID_2445, uid)
                 put(CalendarContract.Events.HAS_ALARM, if (event.reminderEnabled) 1 else 0)
+                put(CalendarContract.Events.EVENT_COLOR, event.resolvedColor.gcalArgb)
             }
 
             val existingId = findExistingEventIdByUid(context, calendarId, uid)
@@ -251,7 +297,7 @@ object GoogleCalendarSyncHelper {
             }
             count++
         }
-        return count
+        return count to previewSamples.joinToString(", ")
     }
 
     private fun findExistingEventIdByUid(context: Context, calendarId: Long, uid: String): Long? {
@@ -268,45 +314,5 @@ object GoogleCalendarSyncHelper {
             }
         }
         return null
-    }
-
-    fun launchAddToGoogleCalendarIntent(
-        context: Context,
-        instance: ResolvedEventInstance,
-        useDevanagari: Boolean
-    ) {
-        val event = instance.entity
-        val resolvedBsDate = instance.effectiveBsDate
-        val adDate = instance.effectiveAdDate
-
-        val startMillis = adDate
-            .atTime(event.reminderHour.coerceIn(0, 23), event.reminderMinute.coerceIn(0, 59))
-            .atZone(NEPAL_ZONE)
-            .toInstant()
-            .toEpochMilli()
-        val endMillis = startMillis + 60L * 60L * 1000L
-
-        val bsMonthName = BsCalendarData.getMonthName(resolvedBsDate.month, useDevanagari)
-        val bsDayStr = BsCalendarData.formatNumber(resolvedBsDate.day, useDevanagari)
-        val bsYearStr = BsCalendarData.formatNumber(resolvedBsDate.year, useDevanagari)
-
-        val desc = if (useDevanagari) {
-            "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr\n${event.note}".trim()
-        } else {
-            "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}".trim()
-        }
-
-        val intent = Intent(Intent.ACTION_INSERT).apply {
-            data = CalendarContract.Events.CONTENT_URI
-            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
-            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, endMillis)
-            putExtra(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
-            putExtra(CalendarContract.Events.DESCRIPTION, desc)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        try {
-            context.startActivity(intent)
-        } catch (_: Exception) {
-        }
     }
 }

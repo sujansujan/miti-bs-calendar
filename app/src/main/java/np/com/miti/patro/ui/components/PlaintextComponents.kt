@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
@@ -98,20 +100,22 @@ fun AsciiTableHorizontalBorder(
  */
 @Composable
 fun PlaintextBox(
+    header: String? = null,
     modifier: Modifier = Modifier,
     borderColor: Color = LocalMitiPalette.current.comment,
     backgroundColor: Color = LocalMitiPalette.current.surface,
-    headerText: String? = null,
+    headerText: String? = header,
     headerColor: Color = LocalMitiPalette.current.purple,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val effectiveHeader = headerText ?: header
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(backgroundColor)
     ) {
-        if (!headerText.isNullOrBlank()) {
+        if (!effectiveHeader.isNullOrBlank()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -122,7 +126,7 @@ fun PlaintextBox(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "+-- $headerText ",
+                        text = "+-- $effectiveHeader ",
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
@@ -158,19 +162,30 @@ fun PlaintextBox(
 }
 
 /**
- * Plaintext bracketed link/action control (e.g., "[+EVENT]", "[< PREV]", "[TODAY]").
+ * Plaintext bracketed link/action control (e.g., "[+EVENT]", "[CONVERT]", "[TODAY]").
  */
 @Composable
 fun BracketButton(
-    text: String,
+    label: String = "",
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    color: Color = LocalMitiPalette.current.foreground,
-    isHighlighted: Boolean = false
+    textColor: Color = LocalMitiPalette.current.foreground,
+    highlighted: Boolean = false,
+    text: String = label,
+    color: Color = textColor,
+    isHighlighted: Boolean = highlighted
 ) {
     val palette = LocalMitiPalette.current
+    val rawLabel = if (text.isNotEmpty()) text else label
+    val display = if (rawLabel.startsWith("[") || rawLabel.startsWith("*")) {
+        rawLabel
+    } else if (isHighlighted) {
+        "[*$rawLabel*]"
+    } else {
+        "[$rawLabel]"
+    }
     Text(
-        text = text,
+        text = display,
         fontFamily = FontFamily.Monospace,
         fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
         fontSize = 12.sp,
@@ -178,12 +193,12 @@ fun BracketButton(
         modifier = modifier
             .background(if (isHighlighted) palette.selection else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 5.dp, vertical = 4.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp)
     )
 }
 
 /**
- * Plaintext terminal-style text input with `> ` prompt and `-------` bottom border.
+ * Plaintext terminal-style text input with optional label, `> ` prompt, and `-------` bottom border.
  */
 @Composable
 fun PlaintextTextInput(
@@ -191,52 +206,65 @@ fun PlaintextTextInput(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    label: String? = null,
     isError: Boolean = false,
     singleLine: Boolean = true
 ) {
     val palette = LocalMitiPalette.current
     val ruleColor = if (isError) palette.red else palette.comment
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(palette.surface)
-            .padding(top = 6.dp, start = 6.dp, end = 6.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (!label.isNullOrBlank()) {
             Text(
-                text = "> ",
-                color = if (isError) palette.red else palette.purple,
+                text = label,
+                color = palette.comment,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = 11.sp
             )
-            Box(modifier = Modifier.weight(1f)) {
-                if (value.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
+            Spacer(modifier = Modifier.height(2.dp))
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.surface)
+                .padding(top = 6.dp, start = 6.dp, end = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "> ",
+                    color = if (isError) palette.red else palette.purple,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            color = palette.comment,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp
+                        )
+                    }
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = singleLine,
+                        textStyle = TextStyle(
+                            color = palette.foreground,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp
+                        ),
+                        cursorBrush = SolidColor(palette.purple),
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = singleLine,
-                    textStyle = TextStyle(
-                        color = palette.foreground,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    ),
-                    cursorBrush = SolidColor(palette.purple),
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
+            AsciiHorizontalRule(char = '-', edgeChar = '-', color = ruleColor)
         }
-        AsciiHorizontalRule(char = '-', edgeChar = '-', color = ruleColor)
     }
 }
 
@@ -247,14 +275,16 @@ fun PlaintextTextInput(
 fun PlaintextToggleRow(
     label: String,
     checked: Boolean,
-    onToggle: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)? = null,
+    onToggle: ((Boolean) -> Unit)? = onCheckedChange,
     modifier: Modifier = Modifier
 ) {
     val palette = LocalMitiPalette.current
+    val callback = onCheckedChange ?: onToggle ?: {}
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onToggle(!checked) }
+            .clickable { callback(!checked) }
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

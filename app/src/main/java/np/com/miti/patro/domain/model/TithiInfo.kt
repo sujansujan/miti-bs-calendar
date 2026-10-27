@@ -12,10 +12,6 @@ enum class Paksha(
 
 /**
  * Represents the lunar Tithi (1..30) prevailing at sunrise in Nepal (UTC+05:45).
- * 1..14 in Shukla Paksha: Pratipada .. Chaturdashi
- * 15: Purnima (Full Moon)
- * 16..29 in Krishna Paksha: Pratipada .. Chaturdashi
- * 30: Aunsi / Amavasya (New Moon)
  */
 data class TithiInfo(
     val number: Int,          // 1..30 across synodic month
@@ -30,6 +26,7 @@ data class TithiInfo(
     val isPurnima: Boolean get() = number == 15
     val isAunsi: Boolean get() = number == 30
     val isEkadashi: Boolean get() = pakshaDay == 11
+    val shortLabel: String get() = shortLabelEn
 
     val phaseSymbol: String
         get() = when {

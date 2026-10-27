@@ -1,6 +1,6 @@
 package np.com.miti.patro.domain.model
 
-import java.time.DayOfWeek
+import np.com.miti.patro.domain.engine.BsCalendarData
 import java.time.LocalDate
 
 /**
@@ -23,23 +23,29 @@ data class BsDate(
     }
 
     fun formatIso(): String = "%04d-%02d-%02d".format(year, month, day)
+
+    fun formatHuman(useDevanagari: Boolean): String {
+        val mName = BsCalendarData.getMonthName(month, useDevanagari)
+        val dStr = BsCalendarData.formatNumber(day, useDevanagari)
+        val yStr = BsCalendarData.formatNumber(year, useDevanagari)
+        val suffix = if (useDevanagari) "बि.सं." else "BS"
+        return "$yStr $mName $dStr $suffix"
+    }
 }
 
 /**
- * Complete daily cell model combining BS date, Gregorian equivalent, weekday,
+ * Complete daily cell model combining BS date, Gregorian equivalent, weekday index (0=Sun..6=Sat),
  * lunar Tithi, and any national/cultural festivals or user repeating events.
  */
 data class BsCalendarDay(
     val bsDate: BsDate,
     val adDate: LocalDate,
-    val dayOfWeek: DayOfWeek,
+    val dayOfWeek: Int,
+    val isSaturday: Boolean = (dayOfWeek == 6),
     val tithi: TithiInfo,
     val festivals: List<FestivalInfo>,
     val isToday: Boolean
 ) {
-    val isSaturday: Boolean
-        get() = dayOfWeek == DayOfWeek.SATURDAY
-
     val isPublicHoliday: Boolean
         get() = isSaturday || festivals.any { it.isPublicHoliday }
 }

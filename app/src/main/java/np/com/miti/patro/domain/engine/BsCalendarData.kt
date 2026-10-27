@@ -241,4 +241,21 @@ object BsCalendarData {
         }
         return sb.toString()
     }
+
+    fun daysInMonth(bsYear: Int, bsMonth: Int): Int = getDaysInMonth(bsYear, bsMonth)
+
+    fun monthName(bsMonth: Int, useDevanagari: Boolean): String = getMonthName(bsMonth, useDevanagari)
+
+    fun formatNumberPadded(value: Int, useDevanagari: Boolean): String =
+        formatNumber(value, useDevanagari, padWidth = 2)
+
+    fun weekdayShort(dowIndex0Sun: Int, useDevanagari: Boolean): String {
+        val idx = dowIndex0Sun.coerceIn(0, 6)
+        return if (useDevanagari) WEEKDAY_SHORT_NE[idx] else WEEKDAY_SHORT_EN[idx]
+    }
+
+    fun weekdayFull(dowIndex0Sun: Int, useDevanagari: Boolean): String {
+        val idx = dowIndex0Sun.coerceIn(0, 6)
+        return if (useDevanagari) WEEKDAY_FULL_NE[idx] else WEEKDAY_FULL_EN[idx]
+    }
 }

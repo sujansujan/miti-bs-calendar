@@ -1,12 +1,17 @@
 package np.com.miti.patro.ui.calendar
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,104 +28,134 @@ import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
-import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun YearMonthJumpDialog(
-    initialYear: Int,
-    initialMonth: Int,
+    currentYear: Int,
+    currentMonth: Int,
     useDevanagari: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (Int, Int) -> Unit
 ) {
     val palette = LocalMitiPalette.current
     val ne = useDevanagari
-    var year by remember { mutableIntStateOf(initialYear) }
-    var month by remember { mutableIntStateOf(initialMonth) }
+    var year by remember { mutableIntStateOf(currentYear) }
+    var month by remember { mutableIntStateOf(currentMonth) }
 
     Dialog(onDismissRequest = onDismiss) {
-        PlaintextBox(
-            borderColor = palette.cyan,
-            backgroundColor = palette.background,
-            headerText = AppStrings.jumpDialogHeader(ne),
-            headerColor = palette.cyan
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(palette.background)
+                .border(1.dp, palette.foreground)
+                .padding(12.dp)
         ) {
+            Text(
+                text = AppStrings.jumpHeader(ne),
+                color = palette.purple,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = AppStrings.selectYearLabel(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BracketButton(
-                    text = AppStrings.minus10YBtn(ne),
-                    onClick = { year = (year - 10).coerceAtLeast(BsCalendarData.MIN_YEAR) },
-                    color = palette.comment
-                )
-                BracketButton(
-                    text = AppStrings.minus1YBtn(ne),
-                    onClick = { year = (year - 1).coerceAtLeast(BsCalendarData.MIN_YEAR) },
-                    color = palette.cyan
-                )
+                BracketButton(label = "-10", onClick = {
+                    year = (year - 10).coerceAtLeast(BsCalendarData.MIN_YEAR)
+                })
+                BracketButton(label = "-1", onClick = {
+                    year = (year - 1).coerceAtLeast(BsCalendarData.MIN_YEAR)
+                })
                 Text(
                     text = BsCalendarData.formatNumber(year, ne),
+                    color = palette.cyan,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = palette.yellow
+                    fontSize = 16.sp
                 )
-                BracketButton(
-                    text = AppStrings.plus1YBtn(ne),
-                    onClick = { year = (year + 1).coerceAtMost(BsCalendarData.MAX_YEAR) },
-                    color = palette.cyan
-                )
-                BracketButton(
-                    text = AppStrings.plus10YBtn(ne),
-                    onClick = { year = (year + 10).coerceAtMost(BsCalendarData.MAX_YEAR) },
-                    color = palette.comment
-                )
+                BracketButton(label = "+1", onClick = {
+                    year = (year + 1).coerceAtMost(BsCalendarData.MAX_YEAR)
+                })
+                BracketButton(label = "+10", onClick = {
+                    year = (year + 10).coerceAtMost(BsCalendarData.MAX_YEAR)
+                })
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = AppStrings.selectMonthLabel(ne),
+                color = palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
 
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                for (m in 1..12) {
-                    val mName = BsCalendarData.getMonthName(m, ne)
-                    val isSelected = (m == month)
-                    BracketButton(
-                        text = if (isSelected) "*$mName*" else "[$mName]",
-                        onClick = { month = m },
-                        color = if (isSelected) palette.purple else palette.foreground,
-                        isHighlighted = isSelected
-                    )
+            for (row in 0 until 4) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (col in 0 until 3) {
+                        val m = row * 3 + col + 1
+                        val selected = m == month
+                        val mName = BsCalendarData.monthName(m, ne)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(if (selected) palette.selection else palette.surface)
+                                .border(1.dp, if (selected) palette.cyan else palette.comment)
+                                .clickable { month = m }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = mName,
+                                color = if (selected) palette.cyan else palette.foreground,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.End
             ) {
                 BracketButton(
-                    text = AppStrings.cancelBtn(ne),
+                    label = AppStrings.cancelBtn(ne),
                     onClick = onDismiss,
-                    color = palette.comment
+                    textColor = palette.comment
                 )
+                Spacer(modifier = Modifier.width(8.dp))
                 BracketButton(
-                    text = AppStrings.goBtn(ne),
+                    label = AppStrings.goBtn(ne),
                     onClick = { onConfirm(year, month) },
-                    color = palette.green,
-                    isHighlighted = true
+                    textColor = palette.green,
+                    highlighted = true
                 )
             }
         }
