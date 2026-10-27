@@ -2,7 +2,10 @@ package np.com.miti.patro.ui.calendar
 
 import android.content.Context
 import android.net.Uri
+<<<<<<< HEAD
 import np.com.miti.patro.backup.BackupManager
+=======
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -14,6 +17,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+<<<<<<< HEAD
+=======
+import np.com.miti.patro.backup.BackupManager
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
 import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.data.preferences.NepaliScriptMode
 import np.com.miti.patro.data.preferences.ThemeMode
@@ -36,15 +43,33 @@ import java.time.LocalDate
 data class CalendarUiState(
     val todayBs: BsDate,
     val todayAd: LocalDate,
+<<<<<<< HEAD
     val viewingYear: Int,
     val viewingMonth: Int,
     val selectedBsDate: BsDate,
+=======
+    val todayDay: BsCalendarDay,
+    val todayEvents: List<ResolvedEventInstance> = emptyList(),
+    val viewingYear: Int,
+    val viewingMonth: Int,
+    val selectedBsDate: BsDate? = null,
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     val daysInMonthGrid: List<BsCalendarDay?> = emptyList(),
     val eventsByDayInMonth: Map<Int, List<ResolvedEventInstance>> = emptyMap(),
     val allEvents: List<EventEntity> = emptyList(),
     val settings: UserSettings = UserSettings(),
     val statusBannerMessage: String? = null
+<<<<<<< HEAD
 )
+=======
+) {
+    /**
+     * If a calendar date is highlighted, returns that selection; otherwise returns today's BS date.
+     */
+    val effectiveAnchorBsDate: BsDate
+        get() = selectedBsDate ?: todayBs
+}
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
 
 class CalendarViewModel(
     private val appContext: Context,
@@ -57,7 +82,12 @@ class CalendarViewModel(
 
     private val _viewingYear = MutableStateFlow(todayBs.year)
     private val _viewingMonth = MutableStateFlow(todayBs.month)
+<<<<<<< HEAD
     private val _selectedBsDate = MutableStateFlow(todayBs)
+=======
+    // Null when no specific calendar cell is highlighted (defaults to Today view & Today date for [+])
+    private val _selectedBsDate = MutableStateFlow<BsDate?>(null)
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     private val _statusBanner = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<CalendarUiState> = combine(
@@ -83,17 +113,40 @@ class CalendarViewModel(
         initialValue = buildMonthUiState(
             year = todayBs.year,
             month = todayBs.month,
+<<<<<<< HEAD
             selectedBsDate = todayBs,
+=======
+            selectedBsDate = null,
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
             events = emptyList(),
             settings = UserSettings(),
             banner = null
         )
     )
 
+    private fun buildDayModel(bsDate: BsDate, adDate: LocalDate): BsCalendarDay {
+        val dow = BsDateConverter.dayOfWeekIndex(adDate)
+        val tithi = TithiCalculator.calculateTithiAtSunrise(adDate)
+        val festivals = NepaliFestivals.getFestivalsForDay(bsDate, tithi)
+        return BsCalendarDay(
+            bsDate = bsDate,
+            adDate = adDate,
+            dayOfWeek = dow,
+            isSaturday = (dow == 6),
+            tithi = tithi,
+            festivals = festivals,
+            isToday = (bsDate == todayBs)
+        )
+    }
+
     private fun buildMonthUiState(
         year: Int,
         month: Int,
+<<<<<<< HEAD
         selectedBsDate: BsDate,
+=======
+        selectedBsDate: BsDate?,
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
         events: List<EventEntity>,
         settings: UserSettings,
         banner: String?
@@ -102,6 +155,7 @@ class CalendarViewModel(
         val firstDayBs = BsDate(year, month, 1)
         val firstDayAd = BsDateConverter.bsToAd(firstDayBs)
         val firstDayOfWeek = BsDateConverter.dayOfWeekIndex(firstDayAd)
+<<<<<<< HEAD
 
         val resolvedInMonth = eventRepository.resolveEventsForBsMonth(events, year, month)
         val eventsByDay = resolvedInMonth.groupBy { it.resolvedBsDate.day }
@@ -109,6 +163,20 @@ class CalendarViewModel(
         val cells = ArrayList<BsCalendarDay?>(firstDayOfWeek + totalDays)
         repeat(firstDayOfWeek) { cells.add(null) }
 
+=======
+
+        val resolvedInMonth = eventRepository.resolveEventsForBsMonth(
+            allEvents = events,
+            bsYear = year,
+            bsMonth = month,
+            strategy = settings.missingDayStrategy
+        )
+        val eventsByDay = resolvedInMonth.groupBy { it.resolvedBsDate.day }
+
+        val cells = ArrayList<BsCalendarDay?>(firstDayOfWeek + totalDays)
+        repeat(firstDayOfWeek) { cells.add(null) }
+
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
         for (day in 1..totalDays) {
             val bsDate = BsDate(year, month, day)
             val adDate = firstDayAd.plusDays((day - 1).toLong())
@@ -134,18 +202,48 @@ class CalendarViewModel(
             cells.add(null)
         }
 
+<<<<<<< HEAD
         val clampedSelected = if (selectedBsDate.year == year && selectedBsDate.month == month) {
             selectedBsDate.copy(day = selectedBsDate.day.coerceAtMost(totalDays))
         } else {
             selectedBsDate
+=======
+        val todayDayModel = buildDayModel(todayBs, todayAd)
+        val todayEventsList = if (year == todayBs.year && month == todayBs.month) {
+            eventsByDay[todayBs.day].orEmpty()
+        } else {
+            eventRepository.resolveEventsForBsMonth(
+                allEvents = events,
+                bsYear = todayBs.year,
+                bsMonth = todayBs.month,
+                strategy = settings.missingDayStrategy
+            ).filter { it.resolvedBsDate.day == todayBs.day }
+        }
+
+        val validSelected = if (selectedBsDate != null &&
+            selectedBsDate.year == year &&
+            selectedBsDate.month == month
+        ) {
+            selectedBsDate.copy(day = selectedBsDate.day.coerceAtMost(totalDays))
+        } else {
+            null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
         }
 
         return CalendarUiState(
             todayBs = todayBs,
             todayAd = todayAd,
+<<<<<<< HEAD
             viewingYear = year,
             viewingMonth = month,
             selectedBsDate = clampedSelected,
+=======
+            todayDay = todayDayModel,
+            todayEvents = todayEventsList,
+            viewingYear = year,
+            viewingMonth = month,
+            selectedBsDate = validSelected,
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
             daysInMonthGrid = cells,
             eventsByDayInMonth = eventsByDay,
             allEvents = events,
@@ -171,12 +269,16 @@ class CalendarViewModel(
             _viewingYear.value = curY - 1
             _viewingMonth.value = 12
         }
+<<<<<<< HEAD
         val maxDay = BsCalendarData.daysInMonth(_viewingYear.value, _viewingMonth.value)
         _selectedBsDate.value = BsDate(
             _viewingYear.value,
             _viewingMonth.value,
             _selectedBsDate.value.day.coerceAtMost(maxDay)
         )
+=======
+        _selectedBsDate.value = null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun nextMonth() {
@@ -188,26 +290,38 @@ class CalendarViewModel(
             _viewingYear.value = curY + 1
             _viewingMonth.value = 1
         }
+<<<<<<< HEAD
         val maxDay = BsCalendarData.daysInMonth(_viewingYear.value, _viewingMonth.value)
         _selectedBsDate.value = BsDate(
             _viewingYear.value,
             _viewingMonth.value,
             _selectedBsDate.value.day.coerceAtMost(maxDay)
         )
+=======
+        _selectedBsDate.value = null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun previousYear() {
         val nextY = (_viewingYear.value - 1).coerceAtLeast(BsCalendarData.MIN_YEAR)
         _viewingYear.value = nextY
+<<<<<<< HEAD
         val maxDay = BsCalendarData.daysInMonth(nextY, _viewingMonth.value)
         _selectedBsDate.value = BsDate(nextY, _viewingMonth.value, _selectedBsDate.value.day.coerceAtMost(maxDay))
+=======
+        _selectedBsDate.value = null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun nextYear() {
         val nextY = (_viewingYear.value + 1).coerceAtMost(BsCalendarData.MAX_YEAR)
         _viewingYear.value = nextY
+<<<<<<< HEAD
         val maxDay = BsCalendarData.daysInMonth(nextY, _viewingMonth.value)
         _selectedBsDate.value = BsDate(nextY, _viewingMonth.value, _selectedBsDate.value.day.coerceAtMost(maxDay))
+=======
+        _selectedBsDate.value = null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun jumpToMonthYear(year: Int, month: Int) {
@@ -215,8 +329,12 @@ class CalendarViewModel(
         val safeM = month.coerceIn(1, 12)
         _viewingYear.value = safeY
         _viewingMonth.value = safeM
+<<<<<<< HEAD
         val maxDay = BsCalendarData.daysInMonth(safeY, safeM)
         _selectedBsDate.value = BsDate(safeY, safeM, _selectedBsDate.value.day.coerceAtMost(maxDay))
+=======
+        _selectedBsDate.value = null
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun jumpToToday() {
@@ -224,6 +342,7 @@ class CalendarViewModel(
         val currentBs = BsDateConverter.adToBs(currentAd)
         _viewingYear.value = currentBs.year
         _viewingMonth.value = currentBs.month
+<<<<<<< HEAD
         _selectedBsDate.value = currentBs
     }
 
@@ -231,6 +350,19 @@ class CalendarViewModel(
         _viewingYear.value = bsDate.year
         _viewingMonth.value = bsDate.month
         _selectedBsDate.value = bsDate
+=======
+        _selectedBsDate.value = null
+    }
+
+    /**
+     * Toggles selection on a date cell: tapping an unselected date highlights it;
+     * tapping the already-highlighted date clears the highlight back to Today.
+     */
+    fun selectDate(bsDate: BsDate) {
+        _viewingYear.value = bsDate.year
+        _viewingMonth.value = bsDate.month
+        _selectedBsDate.value = if (_selectedBsDate.value == bsDate) null else bsDate
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 
     fun saveEvent(event: EventEntity) {
@@ -260,10 +392,13 @@ class CalendarViewModel(
         }
     }
 
+<<<<<<< HEAD
     /**
      * Syncs a single repeating BS event across all upcoming BS years (e.g., 15 years ahead)
      * into Google Calendar by resolving each BS year's exact converted AD date.
      */
+=======
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     fun syncSingleEventToGoogleCalendarNow(event: EventEntity) {
         viewModelScope.launch(Dispatchers.IO) {
             val settings = preferencesRepository.userSettingsFlow.first()
@@ -442,7 +577,10 @@ class CalendarViewModel(
         }
     }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     class Factory(
         private val appContext: Context,
         private val eventRepository: EventRepository,
