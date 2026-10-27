@@ -217,8 +217,7 @@ object GoogleCalendarSyncHelper {
             val fullDescription = buildString {
                 append(descriptionHeader)
                 if (event.note.isNotBlank()) {
-                    append("
-")
+                    append("\n")
                     append(event.note)
                 }
             }
@@ -292,11 +291,9 @@ object GoogleCalendarSyncHelper {
         val bsYearStr = BsCalendarData.formatNumber(resolvedBsDate.year, useDevanagari)
 
         val desc = if (useDevanagari) {
-            "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr
-${event.note}".trim()
+            "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr\n${event.note}".trim()
         } else {
-            "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS
-${event.note}".trim()
+            "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}".trim()
         }
 
         val intent = Intent(Intent.ACTION_INSERT).apply {
