@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown only where Android requires it (launcher & system app info) -->
+    <string name="app_name">Miti</string>
+    <string name="notification_channel_name">BS Event Reminders</string>
+    <string name="notification_channel_desc">Annual Bikram Sambat event notifications</string>
+</resources>
