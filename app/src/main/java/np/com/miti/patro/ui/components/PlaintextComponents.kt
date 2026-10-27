@@ -32,6 +32,10 @@ import np.com.miti.patro.ui.theme.LocalMitiPalette
  * inspired by plaintextsports.com scoreboard tables and box-scores.
  */
 @Composable
+private const val DEFAULT_ASCII_RULE = "+------------------------------------------------------------------------------------------------"
+private const val DASH_ONLY_ASCII_RULE = "-------------------------------------------------------------------------------------------------"
+
+@Composable
 fun AsciiHorizontalRule(
     modifier: Modifier = Modifier,
     char: Char = '-',
@@ -40,9 +44,13 @@ fun AsciiHorizontalRule(
 ) {
     val palette = LocalMitiPalette.current
     val ruleColor = color ?: palette.comment
-    val line = buildString {
-        append(edgeChar)
-        repeat(96) { append(char) }
+    val line = when {
+        char == '-' && edgeChar == '+' -> DEFAULT_ASCII_RULE
+        char == '-' && edgeChar == '-' -> DASH_ONLY_ASCII_RULE
+        else -> buildString {
+            append(edgeChar)
+            repeat(96) { append(char) }
+        }
     }
     Text(
         text = line,

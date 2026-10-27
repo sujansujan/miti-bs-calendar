@@ -207,6 +207,40 @@ object BsCalendarData {
 
     private val DEFAULT_FALLBACK_MONTHS = intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)
 
+
+    val EPOCH_1970_AD_DATE: LocalDate = LocalDate.of(1913, 4, 13)
+    private const val YEAR_COUNT = MAX_YEAR - MIN_YEAR + 1
+
+    // O(1) lookup tables initialized once in memory:
+    // YEAR_TOTAL_DAYS[y - MIN_YEAR] = total days in BS year y
+    // YEAR_START_OFFSET_FROM_1970[y - MIN_YEAR] = exact days from 1970-01-01 BS to y-01-01 BS
+    // MONTH_PREFIX_DAYS[(y - MIN_YEAR) * 12 + (m - 1)] = days before month m within BS year y
+    val YEAR_TOTAL_DAYS = IntArray(YEAR_COUNT)
+    val YEAR_START_OFFSET_FROM_1970 = IntArray(YEAR_COUNT)
+    val MONTH_PREFIX_DAYS = IntArray(YEAR_COUNT * 12)
+
+    init {
+        var runningDays = 0
+        for (i in 0 until YEAR_COUNT) {
+            val y = MIN_YEAR + i
+            YEAR_START_OFFSET_FROM_1970[i] = runningDays
+            val months = DAYS_PER_MONTH[y] ?: DEFAULT_FALLBACK_MONTHS
+            var mPrefix = 0
+            for (m in 0 until 12) {
+                MONTH_PREFIX_DAYS[i * 12 + m] = mPrefix
+                mPrefix += months[m]
+            }
+            YEAR_TOTAL_DAYS[i] = mPrefix
+            runningDays += mPrefix
+        }
+    }
+
+    fun getDaysBeforeMonthInYear(bsYear: Int, bsMonth: Int): Int {
+        val yIdx = (bsYear - MIN_YEAR).coerceIn(0, YEAR_COUNT - 1)
+        val mIdx = (bsMonth - 1).coerceIn(0, 11)
+        return MONTH_PREFIX_DAYS[yIdx * 12 + mIdx]
+    }
+
     fun getDaysInMonth(bsYear: Int, bsMonth: Int): Int {
         require(bsMonth in 1..12) { "BS month must be in 1..12, got $bsMonth" }
         val yearArray = DAYS_PER_MONTH[bsYear] ?: DEFAULT_FALLBACK_MONTHS
@@ -214,8 +248,10 @@ object BsCalendarData {
     }
 
     fun getDaysInYear(bsYear: Int): Int {
-        val yearArray = DAYS_PER_MONTH[bsYear] ?: DEFAULT_FALLBACK_MONTHS
-        return yearArray.sum()
+        if (bsYear in MIN_YEAR..MAX_YEAR) {
+            return YEAR_TOTAL_DAYS[bsYear - MIN_YEAR]
+        }
+        return DEFAULT_FALLBACK_MONTHS.sum()
     }
 
     fun getMonthName(bsMonth: Int, useDevanagari: Boolean): String {

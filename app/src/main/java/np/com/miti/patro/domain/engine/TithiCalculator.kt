@@ -146,9 +146,21 @@ object TithiCalculator {
         LunarTerm(2, 0, 3, 0, 294)
     )
 
-    fun calculateTithiAtSunrise(adDate: LocalDate): TithiInfo = calculateTithi(BsDateConverter.adToBs(adDate), adDate)
+    // Thread-safe bounded cache (keyed by LocalDate.toEpochDay()) avoiding redundant 59-term trig calls
+    private val tithiCache = java.util.concurrent.ConcurrentHashMap<Long, TithiInfo>(256)
+
+    fun calculateTithiAtSunrise(adDate: LocalDate): TithiInfo {
+        val epochDay = adDate.toEpochDay()
+        tithiCache[epochDay]?.let { return it }
+        return calculateTithi(BsDateConverter.adToBs(adDate), adDate)
+    }
 
     fun calculateTithi(bsDate: BsDate, adDate: LocalDate = BsDateConverter.bsToAd(bsDate)): TithiInfo {
+        val epochDay = adDate.toEpochDay()
+        tithiCache[epochDay]?.let { return it }
+        if (tithiCache.size > 1024) {
+            tithiCache.clear()
+        }
         val jd = toJulianDay(adDate.year, adDate.monthValue, adDate.dayOfMonth, 0.0)
         val sunLon = sunApparentLongitude(jd)
         val moonLon = moonApparentLongitude(jd)
@@ -156,7 +168,7 @@ object TithiCalculator {
 
         val overrideTithiNumber = PANCHANG_OVERRIDES[bsDate.formatIso()]
         val tithiNumber = overrideTithiNumber ?: (floor(elongation / 12.0).toInt().coerceIn(0, 29) + 1)
-        return buildTithiInfo(tithiNumber, elongation)
+        return buildTithiInfo(tithiNumber, elongation).also { tithiCache[epochDay] = it }
     }
 
     fun buildTithiInfo(tithiNumber: Int, elongationDeg: Double = (tithiNumber - 1) * 12.0): TithiInfo {

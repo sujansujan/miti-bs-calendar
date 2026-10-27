@@ -17,6 +17,7 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resourceConfigurations.addAll(listOf("en", "ne"))
         vectorDrawables {
             useSupportLibrary = true
         }

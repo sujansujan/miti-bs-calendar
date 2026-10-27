@@ -8,7 +8,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * Bidirectional Bikram Sambat (BS) <-> Gregorian (AD) converter and annual
- * event recurrence resolver.
+ * event recurrence resolver using O(1) precomputed prefix tables.
  */
 object BsDateConverter {
 
@@ -19,61 +19,58 @@ object BsDateConverter {
 
     fun bsToAd(bsDate: BsDate): LocalDate = bsToAd(bsDate.year, bsDate.month, bsDate.day)
 
+    /**
+     * O(1) conversion from BS (year, month, day) to Gregorian LocalDate.
+     */
     fun bsToAd(bsYear: Int, bsMonth: Int, bsDay: Int): LocalDate {
         require(bsMonth in 1..12) { "BS month must be between 1 and 12" }
-        val maxDay = BsCalendarData.getDaysInMonth(bsYear, bsMonth)
+        val safeYear = bsYear.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        val maxDay = BsCalendarData.getDaysInMonth(safeYear, bsMonth)
         val clampedDay = bsDay.coerceIn(1, maxDay)
 
-        var totalDays = 0L
-        if (bsYear >= BsCalendarData.ANCHOR_BS_YEAR) {
-            for (y in BsCalendarData.ANCHOR_BS_YEAR until bsYear) {
-                totalDays += BsCalendarData.getDaysInYear(y)
-            }
-            for (m in 1 until bsMonth) {
-                totalDays += BsCalendarData.getDaysInMonth(bsYear, m)
-            }
-            totalDays += (clampedDay - 1)
-        } else {
-            for (y in bsYear until BsCalendarData.ANCHOR_BS_YEAR) {
-                totalDays -= BsCalendarData.getDaysInYear(y)
-            }
-            for (m in 1 until bsMonth) {
-                totalDays += BsCalendarData.getDaysInMonth(bsYear, m)
-            }
-            totalDays += (clampedDay - 1)
-        }
+        val yearIdx = safeYear - BsCalendarData.MIN_YEAR
+        val totalDaysFrom1970 = BsCalendarData.YEAR_START_OFFSET_FROM_1970[yearIdx].toLong() +
+            BsCalendarData.getDaysBeforeMonthInYear(safeYear, bsMonth).toLong() +
+            (clampedDay - 1).toLong()
 
-        return BsCalendarData.ANCHOR_AD_DATE.plusDays(totalDays)
+        return BsCalendarData.EPOCH_1970_AD_DATE.plusDays(totalDaysFrom1970)
     }
 
+    /**
+     * O(log N) binary-search conversion from Gregorian LocalDate to BS date.
+     */
     fun adToBs(adDate: LocalDate): BsDate {
-        var daysDiff = ChronoUnit.DAYS.between(BsCalendarData.ANCHOR_AD_DATE, adDate)
-        var bsYear = BsCalendarData.ANCHOR_BS_YEAR
-
-        if (daysDiff >= 0) {
-            while (bsYear <= BsCalendarData.MAX_YEAR) {
-                val daysInYear = BsCalendarData.getDaysInYear(bsYear)
-                if (daysDiff < daysInYear) break
-                daysDiff -= daysInYear
-                bsYear++
-            }
-        } else {
-            while (daysDiff < 0 && bsYear > BsCalendarData.MIN_YEAR) {
-                bsYear--
-                daysDiff += BsCalendarData.getDaysInYear(bsYear)
-            }
+        val daysFrom1970 = ChronoUnit.DAYS.between(BsCalendarData.EPOCH_1970_AD_DATE, adDate).toInt()
+        if (daysFrom1970 <= 0) {
+            return BsDate(BsCalendarData.MIN_YEAR, 1, 1)
         }
+
+        val offsets = BsCalendarData.YEAR_START_OFFSET_FROM_1970
+        val searchIdx = offsets.binarySearch(daysFrom1970)
+        val yearIdx = if (searchIdx >= 0) {
+            searchIdx
+        } else {
+            (-searchIdx - 2).coerceIn(0, offsets.size - 1)
+        }
+
+        val bsYear = BsCalendarData.MIN_YEAR + yearIdx
+        var dayInYear = daysFrom1970 - offsets[yearIdx]
 
         var bsMonth = 1
         while (bsMonth <= 12) {
-            val daysInMonth = BsCalendarData.getDaysInMonth(bsYear, bsMonth)
-            if (daysDiff < daysInMonth) break
-            daysDiff -= daysInMonth
+            val dim = BsCalendarData.getDaysInMonth(bsYear, bsMonth)
+            if (dayInYear < dim) break
+            dayInYear -= dim
             bsMonth++
         }
 
-        val bsDay = (daysDiff.toInt() + 1).coerceAtLeast(1)
-        return BsDate(bsYear, bsMonth.coerceIn(1, 12), bsDay)
+        if (bsMonth > 12) {
+            val lastDim = BsCalendarData.getDaysInMonth(bsYear, 12)
+            return BsDate(bsYear, 12, lastDim)
+        }
+
+        val bsDay = (dayInYear + 1).coerceAtLeast(1)
+        return BsDate(bsYear, bsMonth, bsDay)
     }
 
     fun resolveAnnualOccurrence(

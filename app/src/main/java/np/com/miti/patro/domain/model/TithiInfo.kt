@@ -1,5 +1,7 @@
 package np.com.miti.patro.domain.model
 
+import androidx.compose.runtime.Immutable
+
 enum class Paksha(
     val englishName: String,
     val nepaliName: String,
@@ -13,6 +15,7 @@ enum class Paksha(
 /**
  * Represents the lunar Tithi (1..30) prevailing at sunrise in Nepal (UTC+05:45).
  */
+@Immutable
 data class TithiInfo(
     val number: Int,          // 1..30 across synodic month
     val pakshaDay: Int,       // 1..15 within Paksha

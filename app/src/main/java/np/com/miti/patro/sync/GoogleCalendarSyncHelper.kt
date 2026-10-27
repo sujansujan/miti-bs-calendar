@@ -218,6 +218,7 @@ object GoogleCalendarSyncHelper {
         val startYear = minOf(currentBsYear, event.startBsYear).coerceAtLeast(BsCalendarData.MIN_YEAR)
         val endBsYear = (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
 
+        val existingUidToIdMap = findExistingEventIdsByPrefix(context, calendarId, "miti_bs_event_${event.id}_%")
         var count = 0
         val previewSamples = mutableListOf<String>()
 
@@ -279,7 +280,7 @@ object GoogleCalendarSyncHelper {
                 put(CalendarContract.Events.EVENT_COLOR, event.resolvedColor.gcalArgb)
             }
 
-            val existingId = findExistingEventIdByUid(context, calendarId, uid)
+            val existingId = existingUidToIdMap[uid]
             if (existingId != null) {
                 val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingId)
                 context.contentResolver.update(updateUri, values, null, null)
@@ -300,19 +301,26 @@ object GoogleCalendarSyncHelper {
         return count to previewSamples.joinToString(", ")
     }
 
-    private fun findExistingEventIdByUid(context: Context, calendarId: Long, uid: String): Long? {
-        val projection = arrayOf(CalendarContract.Events._ID)
+    private fun findExistingEventIdsByPrefix(
+        context: Context,
+        calendarId: Long,
+        uidPrefixPattern: String
+    ): Map<String, Long> {
+        val map = HashMap<String, Long>()
+        val projection = arrayOf(CalendarContract.Events._ID, CalendarContract.Events.UID_2445)
         context.contentResolver.query(
             CalendarContract.Events.CONTENT_URI,
             projection,
-            "${CalendarContract.Events.CALENDAR_ID} = ? AND ${CalendarContract.Events.UID_2445} = ?",
-            arrayOf(calendarId.toString(), uid),
+            "${CalendarContract.Events.CALENDAR_ID} = ? AND ${CalendarContract.Events.UID_2445} LIKE ?",
+            arrayOf(calendarId.toString(), uidPrefixPattern),
             null
         )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                return cursor.getLong(0)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val uid = cursor.getString(1) ?: continue
+                map[uid] = id
             }
         }
-        return null
+        return map
     }
 }

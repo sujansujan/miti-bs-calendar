@@ -68,6 +68,8 @@ class CalendarViewModel(
     // Null when no specific calendar cell is highlighted (defaults to Today view & Today date for [+])
     private val _selectedBsDate = MutableStateFlow<BsDate?>(null)
     private val _statusBanner = MutableStateFlow<String?>(null)
+    private var cachedGridKey: Pair<Int, Int>? = null
+    private var cachedGridCells: List<BsCalendarDay?> = emptyList()
 
     val uiState: StateFlow<CalendarUiState> = combine(
         _viewingYear,
@@ -101,7 +103,7 @@ class CalendarViewModel(
 
     private fun buildDayModel(bsDate: BsDate, adDate: LocalDate): BsCalendarDay {
         val dow = BsDateConverter.dayOfWeekIndex(adDate)
-        val tithi = TithiCalculator.calculateTithiAtSunrise(adDate)
+        val tithi = TithiCalculator.calculateTithi(bsDate, adDate)
         val festivals = NepaliFestivals.getFestivalsForDay(bsDate, tithi)
         return BsCalendarDay(
             bsDate = bsDate,
@@ -143,7 +145,7 @@ class CalendarViewModel(
             val adDate = firstDayAd.plusDays((day - 1).toLong())
             val dow = (firstDayOfWeek + day - 1) % 7
             val isSaturday = dow == 6
-            val tithi = TithiCalculator.calculateTithiAtSunrise(adDate)
+            val tithi = TithiCalculator.calculateTithi(bsDate, adDate)
             val festivals = NepaliFestivals.getFestivalsForDay(bsDate, tithi)
 
             cells.add(

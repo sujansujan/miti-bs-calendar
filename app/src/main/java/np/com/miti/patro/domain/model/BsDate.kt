@@ -1,6 +1,7 @@
 package np.com.miti.patro.domain.model
 
 import np.com.miti.patro.domain.engine.BsCalendarData
+import androidx.compose.runtime.Immutable
 import java.time.LocalDate
 
 /**
@@ -10,6 +11,7 @@ import java.time.LocalDate
  * @property month BS month (1 = Baisakh .. 12 = Chaitra)
  * @property day BS day of month (1..32 depending on year and month)
  */
+@Immutable
 data class BsDate(
     val year: Int,
     val month: Int,
@@ -37,6 +39,7 @@ data class BsDate(
  * Complete daily cell model combining BS date, Gregorian equivalent, weekday index (0=Sun..6=Sat),
  * lunar Tithi, and any national/cultural festivals or user repeating events.
  */
+@Immutable
 data class BsCalendarDay(
     val bsDate: BsDate,
     val adDate: LocalDate,
