@@ -177,11 +177,7 @@ class MainActivity : ComponentActivity() {
 
                             ActiveScreen.CONVERTER -> {
                                 DateConverterScreen(
-<<<<<<< HEAD
-                                    initialBsDate = state.selectedBsDate,
-=======
                                     initialBsDate = state.effectiveAnchorBsDate,
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                                     useDevanagari = state.settings.useDevanagariEverywhere,
                                     onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
                                     onOpenBsDateInCalendar = { targetBsDate ->

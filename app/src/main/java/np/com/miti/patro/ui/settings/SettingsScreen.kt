@@ -33,13 +33,6 @@ import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
-<<<<<<< HEAD
-/**
- * Settings screen — the ONLY screen in the app that displays the app name ("Miti")
- * and theme names (Alucard Light / Dracula Dark), per user design specification.
- */
-=======
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
 @Composable
 fun SettingsScreen(
     settings: UserSettings,
@@ -61,10 +54,6 @@ fun SettingsScreen(
     onImportBackupClicked: () -> Unit
 ) {
     val palette = LocalMitiPalette.current
-<<<<<<< HEAD
-    // Settings uses Devanagari only when EVERYWHERE mode is selected
-=======
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     val ne = settings.useDevanagariEverywhere
     val scrollState = rememberScrollState()
 
@@ -86,58 +75,6 @@ fun SettingsScreen(
                 textColor = palette.cyan
             )
             Text(
-<<<<<<< HEAD
-                text = if (palette.isDark) "THEME: DRACULA (DARK)" else "THEME: ALUCARD (LIGHT)",
-                color = palette.purple,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = AppStrings.settingsTopHeader(ne),
-            color = palette.foreground,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-        )
-        AsciiHorizontalRule()
-
-        if (statusBannerMessage != null) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(palette.surface)
-                    .border(1.dp, palette.cyan)
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = statusBannerMessage,
-                    color = palette.cyan,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                BracketButton(label = "X", onClick = onDismissBanner, textColor = palette.comment)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 1. Theme Selection
-        PlaintextBox(header = AppStrings.themeSectionHeader(ne)) {
-            val modes = listOf(
-                ThemeMode.SYSTEM to AppStrings.themeSystem(ne),
-                ThemeMode.ALUCARD to AppStrings.themeAlucard(ne),
-                ThemeMode.DRACULA to AppStrings.themeDracula(ne)
-            )
-            modes.forEach { (mode, label) ->
-=======
                 text = AppStrings.settingsTopHeader(ne),
                 color = palette.foreground,
                 fontFamily = FontFamily.Monospace,
@@ -177,7 +114,6 @@ fun SettingsScreen(
                 ThemeMode.ALUCARD to AppStrings.themeAlucard(ne),
                 ThemeMode.DRACULA to AppStrings.themeDracula(ne)
             ).forEach { (mode, label) ->
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                 val selected = settings.themeMode == mode
                 Row(
                     modifier = Modifier
@@ -191,21 +127,13 @@ fun SettingsScreen(
                         color = if (selected) palette.cyan else palette.comment,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-<<<<<<< HEAD
-                        fontSize = 12.sp
-=======
                         fontSize = 13.sp
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                     )
                     Text(
                         text = label,
                         color = if (selected) palette.foreground else palette.comment,
                         fontFamily = FontFamily.Monospace,
-<<<<<<< HEAD
-                        fontSize = 11.sp
-=======
                         fontSize = 13.sp
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                     )
                 }
             }
@@ -213,23 +141,6 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-<<<<<<< HEAD
-        // 2. Missing Day Rule for Short BS Months
-        PlaintextBox(header = AppStrings.missingDaySectionHeader(ne)) {
-            Text(
-                text = AppStrings.missingDaySectionNote(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            MissingDayStrategy.values().forEach { strategy ->
-                val selected = settings.defaultMissingDayStrategy == strategy
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onMissingDayStrategyChanged(strategy) }
-=======
         // 2. Language & Display
         PlaintextBox(header = AppStrings.displaySectionHeader(ne)) {
             listOf(
@@ -242,7 +153,6 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onNepaliScriptModeChanged(mode) }
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -251,15 +161,6 @@ fun SettingsScreen(
                         color = if (selected) palette.cyan else palette.comment,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-<<<<<<< HEAD
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = strategy.label(ne),
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-=======
                         fontSize = 13.sp
                     )
                     Text(
@@ -317,7 +218,6 @@ fun SettingsScreen(
                         color = if (selected) palette.foreground else palette.comment,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                     )
                 }
             }
@@ -325,75 +225,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-<<<<<<< HEAD
-        // 3. Language Scope & Calendar Display Options
-        PlaintextBox(header = AppStrings.displaySectionHeader(ne)) {
-            Text(
-                text = AppStrings.languageScopeLabel(ne),
-                color = palette.orange,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-
-            val scriptOptions = listOf(
-                NepaliScriptMode.ENGLISH to AppStrings.langEnglishEverywhere(ne),
-                NepaliScriptMode.CALENDAR_TAB_ONLY to AppStrings.langCalendarTabOnly(ne),
-                NepaliScriptMode.EVERYWHERE to AppStrings.langNepaliEverywhere(ne)
-            )
-            scriptOptions.forEach { (mode, label) ->
-                val selected = settings.nepaliScriptMode == mode
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNepaliScriptModeChanged(mode) }
-                        .padding(vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selected) "(*) " else "( ) ",
-                        color = if (selected) palette.cyan else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = label,
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
-
-            PlaintextToggleRow(
-                label = AppStrings.showTithiToggle(ne),
-                checked = settings.showTithiInGrid,
-                onCheckedChange = onShowTithiChanged
-            )
-            PlaintextToggleRow(
-                label = AppStrings.showAdToggle(ne),
-                checked = settings.showGregorianInGrid,
-                onCheckedChange = onShowGregorianChanged
-            )
-            PlaintextToggleRow(
-                label = AppStrings.showFestivalsToggle(ne),
-                checked = settings.showPublicFestivals,
-                onCheckedChange = onShowPublicFestivalsChanged
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 4. Default Notification Reminder Settings
-=======
         // 4. Default Reminder
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
         PlaintextBox(header = AppStrings.reminderSectionHeader(ne)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -404,11 +236,7 @@ fun SettingsScreen(
                     text = AppStrings.defaultHourLabel(ne),
                     color = palette.foreground,
                     fontFamily = FontFamily.Monospace,
-<<<<<<< HEAD
-                    fontSize = 11.sp
-=======
                     fontSize = 13.sp
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -427,9 +255,6 @@ fun SettingsScreen(
                         color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-<<<<<<< HEAD
-                        fontSize = 12.sp
-=======
                         fontSize = 13.sp
                     )
                     BracketButton(label = "+", onClick = {
@@ -506,114 +331,11 @@ fun SettingsScreen(
                         onClick = onSyncAllToGoogleCalendarNow,
                         textColor = palette.green,
                         highlighted = true
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
                     )
-                    BracketButton(label = "+", onClick = {
-                        onDefaultReminderTimeChanged(
-                            (settings.defaultReminderHour + 1) % 24,
-                            settings.defaultReminderMinute
-                        )
-                    })
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.defaultDaysBeforeLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(
-                        0 to AppStrings.sameDay(ne),
-                        1 to AppStrings.oneDayBefore(ne),
-                        2 to AppStrings.twoDaysBefore(ne)
-                    ).forEach { (days, label) ->
-                        BracketButton(
-                            label = label,
-                            highlighted = settings.defaultReminderDaysBefore == days,
-                            onClick = { onDefaultReminderDaysBeforeChanged(days) }
-                        )
-                    }
                 }
             }
         }
 
-<<<<<<< HEAD
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 5. Google Calendar BS->AD Multi-Year Sync
-        PlaintextBox(header = AppStrings.gcalSectionHeader(ne)) {
-            PlaintextToggleRow(
-                label = AppStrings.gcalAutoSyncToggle(ne),
-                checked = settings.syncToGoogleCalendar,
-                onCheckedChange = onSyncToGoogleCalendarChanged
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.gcalYearsAheadLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(5, 15, 30).forEach { yrs ->
-                        val label = BsCalendarData.formatNumber(yrs, ne) + (if (ne) " वर्ष" else "y")
-                        BracketButton(
-                            label = label,
-                            highlighted = settings.googleSyncYearsAhead == yrs,
-                            onClick = { onGoogleSyncYearsAheadChanged(yrs) }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            BracketButton(
-                label = AppStrings.gcalSyncNowBtn(ne),
-                onClick = onSyncAllToGoogleCalendarNow,
-                textColor = palette.green,
-                highlighted = true
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = AppStrings.gcalPermissionNote(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 6. Backup & Restore (Export / Import Settings & Events)
-        PlaintextBox(header = AppStrings.backupSectionHeader(ne)) {
-            Text(
-                text = AppStrings.backupSectionNote(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-=======
         Spacer(modifier = Modifier.height(8.dp))
 
         // 6. Backup & Restore (Export / Import .json)
@@ -621,7 +343,6 @@ fun SettingsScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
             ) {
                 BracketButton(
                     label = AppStrings.exportBackupBtn(ne),
@@ -637,22 +358,6 @@ fun SettingsScreen(
             }
         }
 
-<<<<<<< HEAD
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 7. Data Accuracy & Official Verification Info
-        PlaintextBox(header = AppStrings.verificationSectionHeader7(ne)) {
-            Text(
-                text = AppStrings.verificationBody(ne),
-                color = palette.comment,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-=======
         Spacer(modifier = Modifier.height(16.dp))
->>>>>>> 2f0105a (Initial commit: Miti BS Calendar)
     }
 }
