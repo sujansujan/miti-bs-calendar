@@ -99,9 +99,8 @@ object ReminderScheduler {
         val startSearchYear = maxOf(currentBs.year, event.startBsYear)
 
         for (candidateYear in startSearchYear..BsCalendarData.MAX_YEAR) {
-            val resolved = BsDateConverter.resolveAnnualOccurrence(
-                eventMonth = event.bsMonth,
-                eventDay = event.bsDay,
+            val resolved = BsDateConverter.resolveEventOccurrence(
+                event = event,
                 targetBsYear = candidateYear,
                 strategy = strategy
             ) ?: continue

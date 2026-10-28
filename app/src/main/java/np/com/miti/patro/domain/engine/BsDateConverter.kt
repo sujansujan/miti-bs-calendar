@@ -1,14 +1,16 @@
 package np.com.miti.patro.domain.engine
 
+import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.domain.model.ResolvedBsOccurrence
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
 /**
  * Bidirectional Bikram Sambat (BS) <-> Gregorian (AD) converter and annual
- * event recurrence resolver using O(1) precomputed prefix tables.
+ * event recurrence resolver (supporting both solar Gatey and lunar Shraddha Tithi).
  */
 object BsDateConverter {
 
@@ -71,6 +73,75 @@ object BsDateConverter {
 
         val bsDay = (dayInYear + 1).coerceAtLeast(1)
         return BsDate(bsYear, bsMonth, bsDay)
+    }
+
+    /**
+     * Resolves a Shraddha (Lunar Tithi) annual occurrence inside [bsMonth] of [targetBsYear].
+     * Scans all days in [bsMonth] for the exact sunrise Tithi [shraddhaTithi] (1..30),
+     * falling back to the closest lunar elongation day if the Tithi is kshaya (skipped at sunrise).
+     */
+    fun resolveShraddhaOccurrence(
+        bsMonth: Int,
+        shraddhaTithi: Int,
+        targetBsYear: Int
+    ): ResolvedBsOccurrence? {
+        if (targetBsYear !in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) return null
+        val targetTithi = shraddhaTithi.coerceIn(1, 30)
+        val daysInMonth = BsCalendarData.getDaysInMonth(targetBsYear, bsMonth)
+        val firstDayAd = bsToAd(targetBsYear, bsMonth, 1)
+
+        var bestDay = 1
+        var bestAngleDiff = Double.MAX_VALUE
+        val targetCenterAngle = (targetTithi - 1) * 12.0 + 6.0
+
+        for (day in 1..daysInMonth) {
+            val bsDate = BsDate(targetBsYear, bsMonth, day)
+            val adDate = firstDayAd.plusDays((day - 1).toLong())
+            val tithiInfo = TithiCalculator.calculateTithi(bsDate, adDate)
+            if (tithiInfo.number == targetTithi) {
+                return ResolvedBsOccurrence(
+                    targetDate = bsDate,
+                    originalDay = day,
+                    isClampedOrRolled = false
+                )
+            }
+            val rawDiff = abs(tithiInfo.elongationDeg - targetCenterAngle)
+            val circularDiff = minOf(rawDiff, 360.0 - rawDiff)
+            if (circularDiff < bestAngleDiff) {
+                bestAngleDiff = circularDiff
+                bestDay = day
+            }
+        }
+
+        return ResolvedBsOccurrence(
+            targetDate = BsDate(targetBsYear, bsMonth, bestDay),
+            originalDay = bestDay,
+            isClampedOrRolled = true
+        )
+    }
+
+    /**
+     * Unified resolver for any EventEntity (either standard BS Gatey or Lunar Tithi Shraddha).
+     */
+    fun resolveEventOccurrence(
+        event: EventEntity,
+        targetBsYear: Int,
+        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
+    ): ResolvedBsOccurrence? {
+        return if (event.isShraddha && event.shraddhaTithi in 1..30) {
+            resolveShraddhaOccurrence(
+                bsMonth = event.bsMonth,
+                shraddhaTithi = event.shraddhaTithi,
+                targetBsYear = targetBsYear
+            )
+        } else {
+            resolveAnnualOccurrence(
+                eventMonth = event.bsMonth,
+                eventDay = event.bsDay,
+                targetBsYear = targetBsYear,
+                strategy = strategy
+            )
+        }
     }
 
     fun resolveAnnualOccurrence(

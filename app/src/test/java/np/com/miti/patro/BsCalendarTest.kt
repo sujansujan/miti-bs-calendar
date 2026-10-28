@@ -6,6 +6,7 @@ import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
+import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.model.Paksha
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -136,5 +137,26 @@ class BsCalendarTest {
             "Expected Aunsi (30) or Chaturdashi (29) at sunrise, got ${aunsiTithi.number}",
             aunsiTithi.number in 29..30
         )
+    }
+
+    @Test
+    fun shraddhaLunarTithiRecurrence_resolvesEveryYearInTargetMonth() {
+        // Shraddha in Ashwin (month 6) on Krishna Ashtami (tithi 23)
+        val shraddhaEvent = EventEntity(
+            id = 42L,
+            title = "Buba Shraddha",
+            bsMonth = 6,
+            bsDay = 15,
+            startBsYear = 2080,
+            isShraddha = true,
+            shraddhaTithi = 23
+        )
+        for (year in 2080..2090) {
+            val resolved = BsDateConverter.resolveEventOccurrence(shraddhaEvent, year)
+            assertNotNull("Shraddha must resolve in BS year $year", resolved)
+            assertEquals(year, resolved!!.targetDate.year)
+            assertEquals(6, resolved.targetDate.month)
+            assertTrue(resolved.targetDate.day in 1..BsCalendarData.daysInMonth(year, 6))
+        }
     }
 }

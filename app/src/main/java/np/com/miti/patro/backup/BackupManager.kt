@@ -58,6 +58,8 @@ object BackupManager {
                 put("startBsYear", ev.startBsYear)
                 put("isPersonalHoliday", ev.isPersonalHoliday)
                 put("colorKey", ev.colorKey)
+                put("isShraddha", ev.isShraddha)
+                put("shraddhaTithi", ev.shraddhaTithi)
                 put("reminderEnabled", ev.reminderEnabled)
                 put("reminderDaysBefore", ev.reminderDaysBefore)
                 put("reminderHour", ev.reminderHour)
@@ -118,6 +120,8 @@ object BackupManager {
                     startBsYear = startBsYear,
                     isPersonalHoliday = isPersonalHoliday,
                     colorKey = colorKey,
+                    isShraddha = obj.optBoolean("isShraddha", false),
+                    shraddhaTithi = obj.optInt("shraddhaTithi", 0).coerceIn(0, 30),
                     reminderEnabled = obj.optBoolean("reminderEnabled", true),
                     reminderDaysBefore = obj.optInt("reminderDaysBefore", 0).coerceIn(0, 30),
                     reminderHour = obj.optInt("reminderHour", 7).coerceIn(0, 23),

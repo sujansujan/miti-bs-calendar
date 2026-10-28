@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
+import np.com.miti.patro.domain.engine.BsDateConverter
+import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
@@ -54,10 +56,20 @@ fun EventEditorDialog(
     val palette = LocalMitiPalette.current
     val ne = useDevanagari
 
+    val initialTithiNumber = remember(anchorBsDate, existingEvent) {
+        if (existingEvent != null && existingEvent.isShraddha && existingEvent.shraddhaTithi in 1..30) {
+            existingEvent.shraddhaTithi
+        } else {
+            TithiCalculator.calculateTithi(anchorBsDate).number
+        }
+    }
+
     var title by remember { mutableStateOf(existingEvent?.title ?: "") }
     var notes by remember { mutableStateOf(existingEvent?.notes ?: "") }
+    var isShraddha by remember { mutableStateOf(existingEvent?.isShraddha ?: false) }
     var bsMonth by remember { mutableIntStateOf(existingEvent?.bsMonth ?: anchorBsDate.month) }
     var bsDay by remember { mutableIntStateOf(existingEvent?.bsDay ?: anchorBsDate.day) }
+    var shraddhaTithi by remember { mutableIntStateOf(initialTithiNumber) }
     var selectedColor by remember {
         mutableStateOf(
             existingEvent?.resolvedColor
@@ -95,9 +107,39 @@ fun EventEditorDialog(
                 fontSize = 15.sp
             )
             AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Mode Toggle: [*EVENT (GATEY)*]  [SHRADDHA (TITHI)]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BracketButton(
+                    label = AppStrings.modeGateyBtn(ne),
+                    highlighted = !isShraddha,
+                    onClick = { isShraddha = false },
+                    textColor = if (!isShraddha) palette.cyan else palette.comment
+                )
+                BracketButton(
+                    label = AppStrings.modeShraddhaBtn(ne),
+                    highlighted = isShraddha,
+                    onClick = {
+                        isShraddha = true
+                        // Sync initial Tithi to the currently chosen BS month & day
+                        val currentCellBs = BsDate(anchorBsDate.year, bsMonth, bsDay.coerceAtMost(BsCalendarData.daysInMonth(anchorBsDate.year, bsMonth)))
+                        shraddhaTithi = TithiCalculator.calculateTithi(currentCellBs).number
+                        if (selectedColor == EventColor.GREEN) {
+                            selectedColor = EventColor.YELLOW
+                        }
+                    },
+                    textColor = if (isShraddha) palette.yellow else palette.comment
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            // BS Month & Day Row
+            // BS Month + (Gatey OR Lunar Tithi) Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -122,23 +164,49 @@ fun EventEditorDialog(
                     })
                 }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BracketButton(label = "-", onClick = {
-                        bsDay = if (bsDay > 1) bsDay - 1 else 32
-                    })
-                    Text(
-                        text = BsCalendarData.formatNumberPadded(bsDay, ne),
-                        color = palette.cyan,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    BracketButton(label = "+", onClick = {
-                        bsDay = if (bsDay < 32) bsDay + 1 else 1
-                    })
+                if (!isShraddha) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BracketButton(label = "-", onClick = {
+                            bsDay = if (bsDay > 1) bsDay - 1 else 32
+                        })
+                        Text(
+                            text = BsCalendarData.formatNumberPadded(bsDay, ne),
+                            color = palette.cyan,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        BracketButton(label = "+", onClick = {
+                            bsDay = if (bsDay < 32) bsDay + 1 else 1
+                        })
+                    }
+                } else {
+                    val tithiInfo = remember(shraddhaTithi) {
+                        TithiCalculator.buildTithiInfo(shraddhaTithi)
+                    }
+                    val pakshaLabel = if (ne) tithiInfo.paksha.nepaliName.take(5) else tithiInfo.paksha.shortCode
+                    val tithiName = if (ne) tithiInfo.nepaliName else tithiInfo.englishName
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BracketButton(label = "-", onClick = {
+                            shraddhaTithi = if (shraddhaTithi > 1) shraddhaTithi - 1 else 30
+                        })
+                        Text(
+                            text = "${tithiInfo.phaseSymbol} $pakshaLabel-$tithiName",
+                            color = palette.yellow,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        BracketButton(label = "+", onClick = {
+                            shraddhaTithi = if (shraddhaTithi < 30) shraddhaTithi + 1 else 1
+                        })
+                    }
                 }
             }
 
@@ -148,7 +216,7 @@ fun EventEditorDialog(
                 label = AppStrings.eventTitleLabel(ne),
                 value = title,
                 onValueChange = { title = it },
-                placeholder = AppStrings.eventTitlePlaceholder(ne),
+                placeholder = AppStrings.eventTitlePlaceholder(ne, isShraddha),
                 singleLine = true
             )
 
@@ -290,16 +358,27 @@ fun EventEditorDialog(
                     onClick = {
                         val trimmedTitle = title.trim()
                         if (trimmedTitle.isNotEmpty()) {
+                            val resolvedAnchorDay = if (isShraddha) {
+                                BsDateConverter.resolveShraddhaOccurrence(
+                                    bsMonth = bsMonth,
+                                    shraddhaTithi = shraddhaTithi,
+                                    targetBsYear = anchorBsDate.year
+                                )?.targetDate?.day ?: bsDay
+                            } else {
+                                bsDay
+                            }
                             onSave(
                                 EventEntity(
                                     id = existingEvent?.id ?: 0L,
                                     title = trimmedTitle,
                                     note = notes.trim(),
                                     bsMonth = bsMonth,
-                                    bsDay = bsDay,
+                                    bsDay = resolvedAnchorDay,
                                     startBsYear = existingEvent?.startBsYear ?: anchorBsDate.year,
                                     isPersonalHoliday = isPersonalHoliday,
                                     colorKey = selectedColor.key,
+                                    isShraddha = isShraddha,
+                                    shraddhaTithi = if (isShraddha) shraddhaTithi else 0,
                                     reminderEnabled = reminderEnabled,
                                     reminderDaysBefore = reminderDaysBefore,
                                     reminderHour = reminderHour,

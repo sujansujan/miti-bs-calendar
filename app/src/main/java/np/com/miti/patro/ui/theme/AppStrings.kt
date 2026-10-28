@@ -1,5 +1,8 @@
 package np.com.miti.patro.ui.theme
 
+import np.com.miti.patro.domain.engine.BsCalendarData
+import kotlin.math.abs
+
 /**
  * Minimal UI string table for English and Nepali (Devanagari).
  */
@@ -25,12 +28,51 @@ object AppStrings {
     fun noMonthItems(ne: Boolean) =
         if (ne) "कुनै कार्यक्रम छैन" else "No events this month"
 
-    // Event Editor Dialog (Minimal)
+    fun searchPlaceholder(ne: Boolean) =
+        if (ne) "वर्षभरि कार्यक्रम वा पर्व खोज्नुहोस्..." else "Search year events & festivals..."
+
+    fun noSearchMatches(ne: Boolean) =
+        if (ne) "कुनै नतिजा भेटिएन" else "No matching events or festivals"
+
+    fun formatRelativeDays(daysDiff: Long, ne: Boolean): String {
+        return when {
+            daysDiff == 0L -> todayTag(ne)
+            daysDiff > 0L -> {
+                val n = BsCalendarData.formatNumber(daysDiff.toInt(), ne)
+                if (ne) "$n दिन पछि" else "in ${n}d"
+            }
+            else -> {
+                val n = BsCalendarData.formatNumber(abs(daysDiff).toInt(), ne)
+                if (ne) "$n दिन अघि" else "${n}d ago"
+            }
+        }
+    }
+
+    fun formatYearAndCountdownBadge(daysDiff: Long, yearsElapsed: Int, ne: Boolean): String {
+        val rel = formatRelativeDays(daysDiff, ne)
+        return if (yearsElapsed > 0) {
+            val yStr = BsCalendarData.formatNumber(yearsElapsed, ne)
+            val yTag = if (ne) "वर्ष $yStr" else "#$yStr"
+            "[$yTag • $rel]"
+        } else {
+            "[$rel]"
+        }
+    }
+
+    // Event Editor Dialog (Minimal + Shraddha Tithi mode)
     fun editEventHeader(ne: Boolean) = if (ne) "कार्यक्रम सम्पादन" else "EDIT EVENT"
     fun newEventHeader(ne: Boolean) = if (ne) "नयाँ कार्यक्रम" else "NEW EVENT"
+    fun modeGateyBtn(ne: Boolean) = if (ne) "गते (GATEY)" else "EVENT (GATEY)"
+    fun modeShraddhaBtn(ne: Boolean) = if (ne) "श्राद्ध (तिथि)" else "SHRADDHA (TITHI)"
+    fun shraddhaTag(ne: Boolean) = if (ne) "श्राद्ध" else "SHRADDHA"
     fun bsAnchorDateLabel(ne: Boolean) = if (ne) "बि.सं. मिति (वार्षिक):" else "BS DATE (YEARLY):"
     fun eventTitleLabel(ne: Boolean) = if (ne) "शीर्षक *" else "TITLE *"
-    fun eventTitlePlaceholder(ne: Boolean) = if (ne) "कार्यक्रमको नाम..." else "Event title..."
+    fun eventTitlePlaceholder(ne: Boolean, isShraddha: Boolean = false) = when {
+        isShraddha && ne -> "जस्तै: बुबाको वार्षिक श्राद्ध..."
+        isShraddha -> "e.g., Buba Shraddha..."
+        ne -> "कार्यक्रमको नाम..."
+        else -> "Event title..."
+    }
     fun eventNotesLabel(ne: Boolean) = if (ne) "कैफियत" else "NOTE"
     fun eventNotesPlaceholder(ne: Boolean) = if (ne) "ऐच्छिक..." else "Optional..."
     fun eventColorLabel(ne: Boolean) = if (ne) "रङ:" else "COLOR:"
@@ -71,7 +113,7 @@ object AppStrings {
     fun adDayLabel(ne: Boolean) = if (ne) "इ.सं. दिन:" else "AD DAY:"
     fun bsDayLabel(ne: Boolean) = if (ne) "बि.सं. गते:" else "BS DAY:"
 
-    // Minimal Settings Screen (No unnecessary exposition)
+    // Minimal Settings Screen
     fun settingsTopHeader(ne: Boolean) = if (ne) "मिति — सेटिङ" else "MITI — SETTINGS"
     fun themeSectionHeader(ne: Boolean) = if (ne) "थिम (THEME)" else "THEME"
     fun themeSystem(ne: Boolean) = if (ne) "प्रणाली (System)" else "System (Auto)"

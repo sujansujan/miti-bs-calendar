@@ -33,9 +33,8 @@ class ReminderReceiver : BroadcastReceiver() {
                     currentBsYear
                 )
 
-                val resolved = BsDateConverter.resolveAnnualOccurrence(
-                    eventMonth = event.bsMonth,
-                    eventDay = event.bsDay,
+                val resolved = BsDateConverter.resolveEventOccurrence(
+                    event = event,
                     targetBsYear = targetBsYear,
                     strategy = settings.missingDayStrategy
                 )

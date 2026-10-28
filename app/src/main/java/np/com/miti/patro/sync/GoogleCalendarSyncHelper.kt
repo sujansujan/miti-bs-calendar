@@ -225,9 +225,8 @@ object GoogleCalendarSyncHelper {
         for (bsYear in startYear..endBsYear) {
             if (bsYear < event.startBsYear) continue
 
-            val resolvedOcc = BsDateConverter.resolveAnnualOccurrence(
-                eventMonth = event.bsMonth,
-                eventDay = event.bsDay,
+            val resolvedOcc = BsDateConverter.resolveEventOccurrence(
+                event = event,
                 targetBsYear = bsYear,
                 strategy = strategy
             ) ?: continue

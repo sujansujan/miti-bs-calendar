@@ -1,5 +1,6 @@
 package np.com.miti.patro.data.repository
 
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.Flow
 import np.com.miti.patro.data.local.EventDao
 import np.com.miti.patro.data.local.EventEntity
@@ -8,6 +9,7 @@ import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import java.time.LocalDate
 
+@Immutable
 data class ResolvedEventInstance(
     val entity: EventEntity,
     val effectiveBsDate: BsDate,
@@ -64,9 +66,8 @@ class EventRepository(
         for (event in allEvents) {
             if (bsYear < event.startBsYear) continue
 
-            val occ = BsDateConverter.resolveAnnualOccurrence(
-                eventMonth = event.bsMonth,
-                eventDay = event.bsDay,
+            val occ = BsDateConverter.resolveEventOccurrence(
+                event = event,
                 targetBsYear = bsYear,
                 strategy = strategy
             )
@@ -81,10 +82,9 @@ class EventRepository(
                 map.getOrPut(occ.targetDate.day) { mutableListOf() }.add(instance)
             }
 
-            if (bsMonth == 1 && event.bsMonth == 12 && (bsYear - 1) >= event.startBsYear) {
-                val prevYearOcc = BsDateConverter.resolveAnnualOccurrence(
-                    eventMonth = 12,
-                    eventDay = event.bsDay,
+            if (!event.isShraddha && bsMonth == 1 && event.bsMonth == 12 && (bsYear - 1) >= event.startBsYear) {
+                val prevYearOcc = BsDateConverter.resolveEventOccurrence(
+                    event = event,
                     targetBsYear = bsYear - 1,
                     strategy = strategy
                 )

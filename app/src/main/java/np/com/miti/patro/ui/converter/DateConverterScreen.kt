@@ -38,6 +38,7 @@ import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
 
 private val AD_MONTH_SHORT_EN = arrayOf(
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -329,8 +330,10 @@ fun DateConverterScreen(
             // Unified Live Result Block
             val wdIndex = BsDateConverter.dayOfWeekIndex(currentAdDate)
             val wdName = BsCalendarData.weekdayShort(wdIndex, ne)
+            val daysDiff = ChronoUnit.DAYS.between(LocalDate.now(), currentAdDate)
+            val relBadge = "[${AppStrings.formatRelativeDays(daysDiff, ne)}]"
             Text(
-                text = "${AppStrings.bsDateLabel(ne)} ${currentBsDate.formatHuman(ne)} ($wdName)",
+                text = "${AppStrings.bsDateLabel(ne)} ${currentBsDate.formatHuman(ne)} ($wdName) $relBadge",
                 color = if (isBsInputMode) palette.foreground else palette.green,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
