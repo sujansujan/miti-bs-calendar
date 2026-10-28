@@ -10,17 +10,20 @@ import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 
 /**
  * Handles 100% offline JSON export and import of all Miti user settings and repeating BS events
- * via Android's Storage Access Framework (requiring zero storage permissions).
+ * via Android's Storage Access Framework (with strict size and count limits to prevent OOM / AlarmManager DoS).
  */
 object BackupManager {
 
     private const val BACKUP_SCHEMA_VERSION = 1
+    private const val MAX_BACKUP_CHARS = 1_048_576 // 1 MB character cap
+    private const val MAX_IMPORTED_EVENTS = 300    // Safe cap below Android's 500 concurrent alarm limit
+    private const val MAX_TITLE_LENGTH = 100
+    private const val MAX_NOTE_LENGTH = 500
 
     data class BackupPayload(
         val settings: UserSettings,
@@ -51,8 +54,8 @@ object BackupManager {
         val eventsArr = JSONArray()
         for (ev in events) {
             val evObj = JSONObject().apply {
-                put("title", ev.title)
-                put("note", ev.note)
+                put("title", ev.title.take(MAX_TITLE_LENGTH))
+                put("note", ev.note.take(MAX_NOTE_LENGTH))
                 put("bsMonth", ev.bsMonth)
                 put("bsDay", ev.bsDay)
                 put("startBsYear", ev.startBsYear)
@@ -97,10 +100,12 @@ object BackupManager {
 
         val eventsList = mutableListOf<EventEntity>()
         val eventsArr = root.optJSONArray("events") ?: JSONArray()
-        for (i in 0 until eventsArr.length()) {
+        val count = minOf(eventsArr.length(), MAX_IMPORTED_EVENTS)
+        for (i in 0 until count) {
             val obj = eventsArr.optJSONObject(i) ?: continue
-            val title = obj.optString("title", "").trim()
+            val title = obj.optString("title", "").trim().take(MAX_TITLE_LENGTH)
             if (title.isEmpty()) continue
+            val note = obj.optString("note", "").trim().take(MAX_NOTE_LENGTH)
             val bsMonth = obj.optInt("bsMonth", 1).coerceIn(1, 12)
             val bsDay = obj.optInt("bsDay", 1).coerceIn(1, 32)
             val startBsYear = obj.optInt("startBsYear", 2081).coerceIn(1970, 2100)
@@ -114,7 +119,7 @@ object BackupManager {
                 EventEntity(
                     id = 0L,
                     title = title,
-                    note = obj.optString("note", ""),
+                    note = note,
                     bsMonth = bsMonth,
                     bsDay = bsDay,
                     startBsYear = startBsYear,
@@ -157,8 +162,18 @@ object BackupManager {
     fun readBackupFromUri(context: Context, uri: Uri): BackupPayload? {
         return try {
             val json = context.contentResolver.openInputStream(uri)?.use { inStream ->
-                BufferedReader(InputStreamReader(inStream, Charsets.UTF_8)).use { reader ->
-                    reader.readText()
+                InputStreamReader(inStream, Charsets.UTF_8).use { reader ->
+                    val sb = StringBuilder()
+                    val buf = CharArray(4096)
+                    var totalRead = 0
+                    while (true) {
+                        val n = reader.read(buf)
+                        if (n == -1) break
+                        totalRead += n
+                        if (totalRead > MAX_BACKUP_CHARS) return null
+                        sb.append(buf, 0, n)
+                    }
+                    sb.toString()
                 }
             } ?: return null
             deserializeFromJson(json)

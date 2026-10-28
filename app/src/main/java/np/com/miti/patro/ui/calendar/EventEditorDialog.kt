@@ -215,7 +215,7 @@ fun EventEditorDialog(
             PlaintextTextInput(
                 label = AppStrings.eventTitleLabel(ne),
                 value = title,
-                onValueChange = { title = it },
+                onValueChange = { title = it.take(100) },
                 placeholder = AppStrings.eventTitlePlaceholder(ne, isShraddha),
                 singleLine = true
             )
@@ -225,7 +225,7 @@ fun EventEditorDialog(
             PlaintextTextInput(
                 label = AppStrings.eventNotesLabel(ne),
                 value = notes,
-                onValueChange = { notes = it },
+                onValueChange = { notes = it.take(500) },
                 placeholder = AppStrings.eventNotesPlaceholder(ne),
                 singleLine = false
             )

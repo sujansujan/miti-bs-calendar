@@ -1,7 +1,7 @@
 package np.com.miti.patro.domain.model
 
-import np.com.miti.patro.domain.engine.BsCalendarData
 import androidx.compose.runtime.Immutable
+import np.com.miti.patro.domain.engine.BsCalendarData
 import java.time.LocalDate
 
 /**
@@ -30,8 +30,11 @@ data class BsDate(
         val mName = BsCalendarData.getMonthName(month, useDevanagari)
         val dStr = BsCalendarData.formatNumber(day, useDevanagari)
         val yStr = BsCalendarData.formatNumber(year, useDevanagari)
-        val suffix = if (useDevanagari) "बि.सं." else "BS"
-        return "$yStr $mName $dStr $suffix"
+        return if (useDevanagari) {
+            "$yStr $mName $dStr गते"
+        } else {
+            "$yStr $mName $dStr BS"
+        }
     }
 }
 

@@ -17,6 +17,8 @@ object AppStrings {
     fun todayTag(ne: Boolean) = if (ne) "आज" else "TODAY"
     fun selectedTag(ne: Boolean) = if (ne) "चयन" else "SELECTED"
     fun publicHolidayTag(ne: Boolean) = if (ne) "बिदा" else "HOLIDAY"
+    fun sankrantiTag(ne: Boolean) = if (ne) "संक्रान्ति" else "Sankranti"
+    fun masantaTag(ne: Boolean) = if (ne) "मसान्त" else "Masanta"
 
     fun editBtn(ne: Boolean) = if (ne) "सम्पादन" else "EDIT"
     fun delBtn(ne: Boolean) = if (ne) "हटाउने" else "DEL"

@@ -84,18 +84,20 @@ fun CalendarScreen(
     var showJumpDialog by remember { mutableStateOf(false) }
     var dragAccumulated by remember { mutableFloatStateOf(0f) }
 
-    val adRangeHeader = remember(state.daysInMonthGrid) {
+    val adRangeHeader = remember(state.daysInMonthGrid, calNe) {
         val nonNullDays = state.daysInMonthGrid.filterNotNull()
         if (nonNullDays.isEmpty()) ""
         else {
             val firstAd = nonNullDays.first().adDate
             val lastAd = nonNullDays.last().adDate
-            val m1 = firstAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
-            val m2 = lastAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+            val m1 = if (calNe) BsCalendarData.getAdMonthName(firstAd.monthValue, true) else firstAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+            val m2 = if (calNe) BsCalendarData.getAdMonthName(lastAd.monthValue, true) else lastAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+            val y1 = BsCalendarData.formatNumber(firstAd.year, calNe)
+            val y2 = BsCalendarData.formatNumber(lastAd.year, calNe)
             if (firstAd.year == lastAd.year) {
-                if (m1 == m2) "$m1 ${firstAd.year}" else "$m1-$m2 ${firstAd.year}"
+                if (m1 == m2) "$m1 $y1" else "$m1-$m2 $y1"
             } else {
-                "$m1 ${firstAd.year} - $m2 ${lastAd.year}"
+                "$m1 $y1 - $m2 $y2"
             }
         }
     }
@@ -491,7 +493,7 @@ private fun BsDayCell(
             )
             if (showAd) {
                 Text(
-                    text = day.adDate.dayOfMonth.toString(),
+                    text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagari),
                     color = palette.comment,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
@@ -530,11 +532,12 @@ private fun BsDayCell(
             )
         }
 
-        // Bottom Row: Daily Tithi (10.sp)
+        // Bottom Row: Daily Tithi (10.sp) — highlights Purnima, Aunsi, and Ekadashi
         if (showTithi) {
             val tithiColor = when {
                 day.tithi.isPurnima -> palette.yellow
                 day.tithi.isAunsi -> palette.purple
+                day.tithi.isEkadashi -> palette.green
                 else -> palette.comment
             }
             val tithiLabel = if (useDevanagari) {
@@ -546,7 +549,7 @@ private fun BsDayCell(
                 text = tithiLabel,
                 color = tithiColor,
                 fontFamily = FontFamily.Monospace,
-                fontWeight = if (day.tithi.isPurnima || day.tithi.isAunsi) {
+                fontWeight = if (day.tithi.isPurnima || day.tithi.isAunsi || day.tithi.isEkadashi) {
                     FontWeight.Bold
                 } else {
                     FontWeight.Normal
@@ -579,7 +582,7 @@ private fun MinimalTodayStrip(
 ) {
     val palette = LocalMitiPalette.current
     val ne = useDevanagari
-    val wdShort = BsCalendarData.weekdayShort(day.dayOfWeek, ne)
+    val wdHeader = if (ne) BsCalendarData.weekdayFull(day.dayOfWeek, true) else BsCalendarData.weekdayShort(day.dayOfWeek, false)
     val daysDiff = ChronoUnit.DAYS.between(todayAd, day.adDate)
     val relLabel = AppStrings.formatRelativeDays(daysDiff, ne)
     val badge = if (day.isToday) {
@@ -591,9 +594,21 @@ private fun MinimalTodayStrip(
     }
     val tithiName = if (ne) day.tithi.nepaliName else day.tithi.englishName
     val pakshaShort = if (ne) day.tithi.paksha.nepaliName else day.tithi.paksha.shortCode
+    val totalDaysInMonth = BsCalendarData.daysInMonth(day.bsDate.year, day.bsDate.month)
+    val monthBoundaryMarker = when (day.bsDate.day) {
+        1 -> " • ${AppStrings.sankrantiTag(ne)}"
+        totalDaysInMonth -> " • ${AppStrings.masantaTag(ne)}"
+        else -> ""
+    }
+    val adDisplay = if (ne) BsCalendarData.formatAdDate(day.adDate, true) else day.adDate.toString()
+    val headerText = if (ne) {
+        "$badge • ${day.bsDate.formatHuman(true)}, $wdHeader"
+    } else {
+        "$badge • ${day.bsDate.formatHuman(false)} ($wdHeader)"
+    }
 
     PlaintextBox(
-        header = "$badge • ${day.bsDate.formatHuman(ne)} ($wdShort)",
+        header = headerText,
         headerColor = if (day.isToday) palette.cyan else palette.purple
     ) {
         Row(
@@ -602,7 +617,7 @@ private fun MinimalTodayStrip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${day.tithi.phaseSymbol} $tithiName ($pakshaShort)  |  ${day.adDate}",
+                text = "${day.tithi.phaseSymbol} $tithiName ($pakshaShort)$monthBoundaryMarker  |  $adDisplay",
                 color = palette.foreground,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,

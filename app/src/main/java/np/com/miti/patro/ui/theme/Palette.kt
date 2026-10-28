@@ -5,7 +5,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Official Dracula (Dark) & Alucard (Light) color specifications from https://draculatheme.com/spec
+ * Alucard (Light, tuned with Nepali Lokta Kagaj warmth & Simrik Crimson holiday accent)
+ * and Dracula (Dark) color palettes.
  */
 @Immutable
 data class MitiPalette(
@@ -24,20 +25,20 @@ data class MitiPalette(
     val yellow: Color
 )
 
-// Official Alucard Classic Light Palette
+// Nepali Kagaj & Simrik Alucard Light Palette
 val AlucardPalette = MitiPalette(
     isDark = false,
-    background = Color(0xFFFFFBEB),
-    surface = Color(0xFFF3EED9),
-    selection = Color(0xFFCFCFDE),
-    foreground = Color(0xFF1F1F1F),
-    comment = Color(0xFF6C664B),
+    background = Color(0xFFFFFDF5),
+    surface = Color(0xFFF6EFE0),
+    selection = Color(0xFFE8DEC8),
+    foreground = Color(0xFF1F1C18),
+    comment = Color(0xFF6B5E4C),
     cyan = Color(0xFF036A96),
     green = Color(0xFF14710A),
     orange = Color(0xFFA34D14),
     pink = Color(0xFFA3144D),
     purple = Color(0xFF644AC9),
-    red = Color(0xFFCB3A2A),
+    red = Color(0xFFB8241A),
     yellow = Color(0xFF846E15)
 )
 

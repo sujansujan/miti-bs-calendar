@@ -247,7 +247,7 @@ fun DateConverterScreen(
                         updateFromAd(currentAdDate.year - 1, currentAdDate.monthValue, currentAdDate.dayOfMonth)
                     })
                     Text(
-                        text = currentAdDate.year.toString(),
+                        text = BsCalendarData.formatNumber(currentAdDate.year, ne),
                         color = palette.orange,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -274,7 +274,7 @@ fun DateConverterScreen(
                         for (col in 0 until 3) {
                             val m = row * 3 + col + 1
                             val selected = (m == currentAdDate.monthValue)
-                            val mLabel = "${m.toString().padStart(2, '0')} ${AD_MONTH_SHORT_EN[m - 1]}"
+                            val mLabel = "${BsCalendarData.formatNumberPadded(m, ne)} ${BsCalendarData.getAdMonthName(m, ne)}"
                             Text(
                                 text = mLabel,
                                 color = if (selected) palette.cyan else palette.foreground,
@@ -308,7 +308,7 @@ fun DateConverterScreen(
                         updateFromAd(currentAdDate.year, currentAdDate.monthValue, (currentAdDate.dayOfMonth - 1).coerceAtLeast(1))
                     })
                     Text(
-                        text = "${AppStrings.adDayLabel(ne)} ${currentAdDate.dayOfMonth}",
+                        text = "${AppStrings.adDayLabel(ne)} ${BsCalendarData.formatNumber(currentAdDate.dayOfMonth, ne)}",
                         color = palette.cyan,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -329,7 +329,9 @@ fun DateConverterScreen(
 
             // Unified Live Result Block
             val wdIndex = BsDateConverter.dayOfWeekIndex(currentAdDate)
-            val wdName = BsCalendarData.weekdayShort(wdIndex, ne)
+            val wdName = if (ne) BsCalendarData.weekdayFull(wdIndex, true) else BsCalendarData.weekdayShort(wdIndex, false)
+            val wdShort = BsCalendarData.weekdayShort(wdIndex, ne)
+            val adFormatted = if (ne) BsCalendarData.formatAdDate(currentAdDate, true) else currentAdDate.toString()
             val daysDiff = ChronoUnit.DAYS.between(LocalDate.now(), currentAdDate)
             val relBadge = "[${AppStrings.formatRelativeDays(daysDiff, ne)}]"
             Text(
@@ -341,7 +343,7 @@ fun DateConverterScreen(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${AppStrings.adDateLabel(ne)} $currentAdDate (${currentAdDate.dayOfWeek.name.take(3)})",
+                text = "${AppStrings.adDateLabel(ne)} $adFormatted ($wdShort)",
                 color = if (isBsInputMode) palette.green else palette.foreground,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,

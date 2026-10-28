@@ -50,7 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "miti_bs_calendar.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                     .also { INSTANCE = it }
             }
