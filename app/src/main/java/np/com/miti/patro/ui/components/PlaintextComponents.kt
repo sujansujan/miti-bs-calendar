@@ -31,7 +31,6 @@ import np.com.miti.patro.ui.theme.LocalMitiPalette
  * Renders a literal ASCII horizontal rule of `-------` characters spanning the full width,
  * inspired by plaintextsports.com scoreboard tables and box-scores.
  */
-@Composable
 private const val DEFAULT_ASCII_RULE = "+------------------------------------------------------------------------------------------------"
 private const val DASH_ONLY_ASCII_RULE = "-------------------------------------------------------------------------------------------------"
 
