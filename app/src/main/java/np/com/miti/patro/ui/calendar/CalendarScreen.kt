@@ -48,6 +48,9 @@ import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.CellArtworkMotif
+import np.com.miti.patro.ui.components.FestivalArtResolver
+import np.com.miti.patro.ui.components.FestivalCellWatermark
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextTextInput
 import np.com.miti.patro.ui.theme.AppStrings
@@ -459,8 +462,16 @@ private fun BsDayCell(
 
     val dayNumberStr = BsCalendarData.formatNumber(day.bsDate.day, useDevanagari)
     val formattedDayText = if (day.isToday) "[$dayNumberStr]" else dayNumberStr
+    val artworkMotif = remember(day.festivals, events, showFestivals) {
+        FestivalArtResolver.resolveMotif(day.festivals, events, showFestivals)
+    }
+    val artworkTint = when (artworkMotif) {
+        CellArtworkMotif.SHRADDHA -> palette.purple
+        CellArtworkMotif.BIRTHDAY -> primaryEventColor ?: palette.cyan
+        else -> if (isHoliday) palette.red else palette.orange
+    }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(68.dp)
@@ -473,9 +484,24 @@ private fun BsDayCell(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 3.dp, vertical = 3.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 3.dp, vertical = 3.dp)
     ) {
+        if (artworkMotif != null) {
+            FestivalCellWatermark(
+                motif = artworkMotif,
+                tint = artworkTint,
+                size = 24.dp,
+                alpha = if (palette.isDark) 0.30f else 0.24f,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 1.dp, bottom = 1.dp)
+            )
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
         // Top Row: Large BS Day Number (16.sp) + AD Day Number (10.sp)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -560,6 +586,7 @@ private fun BsDayCell(
                 overflow = TextOverflow.Clip
             )
         }
+        }
     }
 }
 
@@ -611,6 +638,9 @@ private fun MinimalTodayStrip(
         header = headerText,
         headerColor = if (day.isToday) palette.cyan else palette.purple
     ) {
+        val stripMotif = remember(day.festivals, events, showFestivals) {
+            FestivalArtResolver.resolveMotif(day.festivals, events, showFestivals)
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -624,6 +654,15 @@ private fun MinimalTodayStrip(
                 fontSize = 13.sp,
                 modifier = Modifier.weight(1f)
             )
+            if (stripMotif != null) {
+                FestivalCellWatermark(
+                    motif = stripMotif,
+                    tint = if (day.isPublicHoliday) palette.red else palette.orange,
+                    size = 24.dp,
+                    alpha = 0.75f,
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+            }
             BracketButton(
                 label = "+",
                 onClick = onAddEvent,
