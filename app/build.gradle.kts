@@ -1,23 +1,21 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
     namespace = "np.com.miti.patro"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "np.com.miti.patro"
         minSdk = 26
-        targetSdk = 35
-        versionCode = (System.getenv("VERSION_CODE")?.toIntOrNull()) ?: 1
-        versionName = System.getenv("VERSION_NAME") ?: "1.0.0"
+        targetSdk = 34
+        versionCode = 11
+        versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        resourceConfigurations.addAll(listOf("en", "ne"))
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -31,13 +29,12 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Sign with debug key by default so GitHub Actions release APK is immediately installable
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Uses the built-in debug signing config so the release APK is
-            // immediately installable on a phone with zero keystore or GitHub Secrets setup.
-            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -54,6 +51,10 @@ android {
         compose = true
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14"
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -61,29 +62,31 @@ android {
     }
 }
 
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
-}
-
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
+    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
 
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.3")
+    implementation("androidx.activity:activity-compose:1.9.0")
 
-    implementation(libs.androidx.datastore.preferences)
-    implementation(libs.kotlinx.coroutines.android)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
 
-    testImplementation(libs.junit)
-    debugImplementation(libs.androidx.ui.tooling)
+    // Room Local Database
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Preferences DataStore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Unit Testing
+    testImplementation("junit:junit:4.13.2")
 }

@@ -13,47 +13,22 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import np.com.miti.patro.data.preferences.ThemeMode
 
-private val PlaintextTypography = Typography(
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
-        lineHeight = 22.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Bold,
-        fontSize = 15.sp,
-        lineHeight = 20.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 19.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Normal,
-        fontSize = 10.sp,
-        lineHeight = 12.sp
-    )
+private val MonospaceTypography = Typography(
+    bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
+    bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+    titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp),
+    titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp),
+    labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
 )
 
 @Composable
 fun MitiTheme(
-    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    themeMode: ThemeMode,
     content: @Composable () -> Unit
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -69,42 +44,42 @@ fun MitiTheme(
         darkColorScheme(
             background = palette.background,
             surface = palette.surface,
-            onBackground = palette.foreground,
-            onSurface = palette.foreground,
             primary = palette.purple,
-            onPrimary = palette.background,
             secondary = palette.cyan,
-            error = palette.red
+            tertiary = palette.green,
+            error = palette.red,
+            onBackground = palette.foreground,
+            onSurface = palette.foreground
         )
     } else {
         lightColorScheme(
             background = palette.background,
             surface = palette.surface,
-            onBackground = palette.foreground,
-            onSurface = palette.foreground,
             primary = palette.purple,
-            onPrimary = palette.background,
             secondary = palette.cyan,
-            error = palette.red
+            tertiary = palette.green,
+            error = palette.red,
+            onBackground = palette.foreground,
+            onSurface = palette.foreground
         )
     }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val window = (view.context as Activity).window
             window.statusBarColor = palette.background.toArgb()
             window.navigationBarColor = palette.background.toArgb()
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !useDark
-            insetsController.isAppearanceLightNavigationBars = !useDark
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !useDark
+            controller.isAppearanceLightNavigationBars = !useDark
         }
     }
 
     CompositionLocalProvider(LocalMitiPalette provides palette) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = PlaintextTypography,
+            typography = MonospaceTypography,
             content = content
         )
     }

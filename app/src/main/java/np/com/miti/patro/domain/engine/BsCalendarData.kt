@@ -9,7 +9,7 @@ import java.time.LocalDate
  * [Baisakh, Jestha, Ashadh, Shrawan, Bhadra, Ashwin, Kartik, Mangsir, Poush, Magh, Falgun, Chaitra].
  *
  * Base anchor: BS 2000-01-01 (1 Baisakh 2000) == AD 1943-04-14 (Wednesday).
- * Verified against the Nepal Panchanga Nirnayak Samiti published calendars and Hamro Patro / Ashesh's Patro.
+ * Verified against the Nepal Panchanga Nirnayak Samiti published calendars.
  */
 object BsCalendarData {
 
@@ -93,14 +93,14 @@ object BsCalendarData {
         1988 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31),
         1989 to intArrayOf(31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30),
         1990 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
-        1991 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30),
+        1991 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30),
         1992 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
         1993 to intArrayOf(31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30),
         1994 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
         1995 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30),
         1996 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
         1997 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
-        1998 to intArrayOf(31, 31, 32, 31, 32, 30, 30, 29, 30, 29, 30, 30),
+        1998 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
         1999 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31),
         2000 to intArrayOf(30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
         2001 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
@@ -187,43 +187,37 @@ object BsCalendarData {
         2082 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
         2083 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
         2084 to intArrayOf(31, 31, 32, 31, 31, 30, 30, 30, 29, 30, 30, 30),
-        2085 to intArrayOf(31, 32, 31, 32, 30, 31, 30, 30, 29, 30, 30, 30),
-        2086 to intArrayOf(30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30),
-        2087 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 30, 29, 30, 30, 30),
-        2088 to intArrayOf(30, 31, 32, 32, 30, 31, 30, 30, 29, 30, 30, 30),
-        2089 to intArrayOf(30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30),
-        2090 to intArrayOf(30, 32, 31, 32, 31, 30, 30, 30, 29, 30, 30, 30),
-        2091 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
-        2092 to intArrayOf(31, 31, 32, 32, 31, 30, 30, 29, 30, 29, 30, 30),
-        2093 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31),
-        2094 to intArrayOf(31, 31, 31, 32, 31, 31, 29, 30, 30, 29, 30, 30),
-        2095 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
-        2096 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 29, 30, 29, 30, 30),
-        2097 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31),
-        2098 to intArrayOf(31, 31, 31, 32, 31, 31, 30, 29, 30, 29, 30, 30),
-        2099 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
-        2100 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30)
+        2085 to intArrayOf(31, 32, 31, 32, 30, 31, 30, 29, 30, 29, 30, 30),
+        2086 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30),
+        2087 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
+        2088 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2089 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2090 to intArrayOf(31, 32, 31, 32, 30, 31, 30, 29, 30, 29, 30, 30),
+        2091 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
+        2092 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2093 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2094 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 30),
+        2095 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 30, 29, 31),
+        2096 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2097 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30),
+        2098 to intArrayOf(31, 32, 31, 32, 30, 31, 30, 29, 30, 29, 30, 30),
+        2099 to intArrayOf(31, 32, 31, 32, 31, 30, 30, 30, 29, 29, 30, 31),
+        2100 to intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)
     )
 
     private val DEFAULT_FALLBACK_MONTHS = intArrayOf(31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30)
 
-
-    val EPOCH_1970_AD_DATE: LocalDate = LocalDate.of(1913, 4, 13)
-    private const val YEAR_COUNT = MAX_YEAR - MIN_YEAR + 1
-
-    // O(1) lookup tables initialized once in memory:
-    // YEAR_TOTAL_DAYS[y - MIN_YEAR] = total days in BS year y
-    // YEAR_START_OFFSET_FROM_1970[y - MIN_YEAR] = exact days from 1970-01-01 BS to y-01-01 BS
-    // MONTH_PREFIX_DAYS[(y - MIN_YEAR) * 12 + (m - 1)] = days before month m within BS year y
-    val YEAR_TOTAL_DAYS = IntArray(YEAR_COUNT)
-    val YEAR_START_OFFSET_FROM_1970 = IntArray(YEAR_COUNT)
-    val MONTH_PREFIX_DAYS = IntArray(YEAR_COUNT * 12)
+    const val YEAR_COUNT = MAX_YEAR - MIN_YEAR + 1
+    val MIN_AD_DATE: LocalDate = LocalDate.of(1913, 4, 13)
+    val YEAR_START_DAYS_FROM_MIN = IntArray(YEAR_COUNT + 1)
+    private val YEAR_TOTAL_DAYS = IntArray(YEAR_COUNT)
+    private val MONTH_PREFIX_DAYS = IntArray(YEAR_COUNT * 12)
 
     init {
         var runningDays = 0
         for (i in 0 until YEAR_COUNT) {
             val y = MIN_YEAR + i
-            YEAR_START_OFFSET_FROM_1970[i] = runningDays
+            YEAR_START_DAYS_FROM_MIN[i] = runningDays
             val months = DAYS_PER_MONTH[y] ?: DEFAULT_FALLBACK_MONTHS
             var mPrefix = 0
             for (m in 0 until 12) {
@@ -233,6 +227,7 @@ object BsCalendarData {
             YEAR_TOTAL_DAYS[i] = mPrefix
             runningDays += mPrefix
         }
+        YEAR_START_DAYS_FROM_MIN[YEAR_COUNT] = runningDays
     }
 
     fun getDaysBeforeMonthInYear(bsYear: Int, bsMonth: Int): Int {

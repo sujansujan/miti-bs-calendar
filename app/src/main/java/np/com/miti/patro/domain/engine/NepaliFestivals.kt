@@ -4,6 +4,16 @@ import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.FestivalInfo
 import np.com.miti.patro.domain.model.TithiInfo
 
+/**
+ * Offline Nepali National & Cultural Festival Engine (BS 1970..2100).
+ *
+ * Combines:
+ * 1. Fixed Solar BS Festivals (e.g., Baisakh 1 New Year, Asar 15 Paddy Day, Maghe Sankranti).
+ * 2. Pre-verified Nepal Panchanga Nirnayak Samiti table for BS 2083.
+ * 3. True Amanta Lunar Month (Chandra Maas) + Tithi Kshaya / Vriddhi + Adhik Maas (मलमास)
+ *    astronomical rules for all other years (1970..2100 BS), ensuring zero duplicate festivals
+ *    in 31/32-day solar months and accurate cross-month festival tracking.
+ */
 object NepaliFestivals {
 
     private val FIXED_BS_FESTIVALS: Map<Pair<Int, Int>, List<FestivalInfo>> = mapOf(
@@ -68,6 +78,7 @@ object NepaliFestivals {
         "2083-05-29" to listOf(FestivalInfo("Haritalika Teej", "हरितालिका तीज", isPublicHoliday = true, isLunar = true)),
         "2083-05-31" to listOf(FestivalInfo("Rishi Panchami", "ऋषि पञ्चमी", isPublicHoliday = false, isLunar = true)),
         "2083-06-09" to listOf(FestivalInfo("Indra Jatra", "इन्द्रजात्रा", isPublicHoliday = true, isLunar = true)),
+        "2083-06-11" to listOf(FestivalInfo("Sorha Shraddha Starts (Pitri Paksha)", "सोह्र श्राद्ध सुरु", isPublicHoliday = false, isLunar = true)),
         "2083-06-18" to listOf(FestivalInfo("Jitiya Parva", "जितिया पर्व", isPublicHoliday = false, isLunar = true)),
         "2083-06-25" to listOf(FestivalInfo("Ghatasthapana (Dashain Starts)", "घटस्थापना", isPublicHoliday = true, isLunar = true)),
         "2083-06-31" to listOf(FestivalInfo("Fulpati (Dashain)", "फूलपाती", isPublicHoliday = true, isLunar = true)),
@@ -101,76 +112,126 @@ object NepaliFestivals {
         val result = mutableListOf<FestivalInfo>()
         FIXED_BS_FESTIVALS[bsDate.month to bsDate.day]?.let { result.addAll(it) }
 
-        val isoKey = bsDate.formatIso()
-        val verified = VERIFIED_YEAR_FESTIVALS[isoKey]
-        if (verified != null) {
-            for (f in verified) {
+        if (bsDate.year == 2083) {
+            val isoKey = bsDate.formatIso()
+            VERIFIED_YEAR_FESTIVALS[isoKey]?.forEach { f ->
                 if (result.none { it.nameEn == f.nameEn }) result.add(f)
             }
             return result
         }
 
-        val lunarRuleFestivals = evaluateLunarFestivalRules(bsDate.month, tithi)
+        val lunarRuleFestivals = evaluateTrueLunarFestivalRules(bsDate, tithi)
         for (f in lunarRuleFestivals) {
             if (result.none { it.nameEn == f.nameEn }) result.add(f)
         }
         return result
     }
 
-    private fun evaluateLunarFestivalRules(bsMonth: Int, tithi: TithiInfo): List<FestivalInfo> {
+    /**
+     * Evaluates lunar festivals using the true Amanta Lunar Month (tithi.shuddhaLunarMonth),
+     * including any Kshaya Tithi that fell on this solar day and suppressing duplicate
+     * triggers on the second day of a Vriddhi Tithi or during an Adhik Maas (मलमास).
+     */
+    private fun evaluateTrueLunarFestivalRules(bsDate: BsDate, tithi: TithiInfo): List<FestivalInfo> {
         val list = mutableListOf<FestivalInfo>()
-        when (bsMonth) {
-            1 -> {
-                if (tithi.number == 30) list.add(FestivalInfo("Mata Tirtha Aunsi", "मातातीर्थ औंसी", false, true))
-                if (tithi.number == 3) list.add(FestivalInfo("Akshaya Tritiya", "अक्षय तृतीया", false, true))
-                if (tithi.number == 15) list.add(FestivalInfo("Buddha Jayanti / Ubhauli Parva", "बुद्ध जयन्ती / उभौली पर्व", true, true))
+
+        if (tithi.isAdhikMaas) {
+            if (tithi.number == 1 && !tithi.isVriddhiSecondDay) {
+                list.add(FestivalInfo("Adhik Maas (Malamas) Starts", "अधिक मास (मलमास) सुरु", isPublicHoliday = false, isLunar = true))
             }
-            3 -> {
-                if (tithi.number == 15) list.add(FestivalInfo("Guru Purnima", "गुरु पूर्णिमा", false, true))
+            return list
+        }
+
+        val candidateTithis = mutableListOf<Pair<Int, Int>>()
+        if (!tithi.isVriddhiSecondDay) {
+            candidateTithis.add(tithi.shuddhaLunarMonth to tithi.number)
+        }
+        tithi.kshayaTithiNumber?.let { kTithi ->
+            // If sunrise was Aunsi (30) and Shukla Pratipada (1) is Kshaya on the same solar day,
+            // that Shukla Pratipada belongs to the NEXT Amanta lunar month.
+            val kLunarMonth = if (kTithi == 1 && tithi.number == 30) {
+                (tithi.shuddhaLunarMonth % 12) + 1
+            } else {
+                tithi.shuddhaLunarMonth
             }
-            4 -> {
-                if (tithi.number == 5) list.add(FestivalInfo("Nag Panchami", "नाग पञ्चमी", false, true))
-                if (tithi.number == 15) list.add(FestivalInfo("Janai Purnima / Raksha Bandhan", "जनै पूर्णिमा / रक्षा बन्धन", true, true))
-            }
-            5 -> {
-                if (tithi.number == 16) list.add(FestivalInfo("Gai Jatra", "गाईजात्रा", true, true))
-                if (tithi.number == 23) list.add(FestivalInfo("Shree Krishna Janmashtami", "श्रीकृष्ण जन्माष्टमी", true, true))
-                if (tithi.number == 30) list.add(FestivalInfo("Kushe Aunsi (Father's Day)", "कुशे औंसी", false, true))
-                if (tithi.number == 3) list.add(FestivalInfo("Haritalika Teej", "हरितालिका तीज", true, true))
-                if (tithi.number == 5) list.add(FestivalInfo("Rishi Panchami", "ऋषि पञ्चमी", false, true))
-            }
-            6 -> {
-                if (tithi.number == 1) list.add(FestivalInfo("Ghatasthapana (Dashain)", "घटस्थापना", true, true))
-                if (tithi.number == 7) list.add(FestivalInfo("Fulpati (Dashain)", "फूलपाती", true, true))
-                if (tithi.number == 8) list.add(FestivalInfo("Maha Ashtami (Dashain)", "महाष्टमी", true, true))
-                if (tithi.number == 9) list.add(FestivalInfo("Maha Nawami (Dashain)", "महानवमी", true, true))
-                if (tithi.number == 10) list.add(FestivalInfo("Vijaya Dashami (Dashain Tika)", "विजया दशमी", true, true))
-                if (tithi.number == 15) list.add(FestivalInfo("Kojagrat Purnima", "कोजाग्रत पूर्णिमा", false, true))
-            }
-            7 -> {
-                if (tithi.number == 28) list.add(FestivalInfo("Kaag Tihar", "काग तिहार", false, true))
-                if (tithi.number == 29) list.add(FestivalInfo("Kukur Tihar", "कुकुर तिहार", false, true))
-                if (tithi.number == 30) list.add(FestivalInfo("Laxmi Puja / Gai Tihar", "लक्ष्मी पूजा / गाई तिहार", true, true))
-                if (tithi.number == 1) list.add(FestivalInfo("Gobardhan Puja / Mha Puja", "गोवर्द्धन पूजा / म्हः पूजा", true, true))
-                if (tithi.number == 2) list.add(FestivalInfo("Bhai Tika", "भाइटीका", true, true))
-                if (tithi.number == 6) list.add(FestivalInfo("Chhath Parva", "छठ पर्व", true, true))
-            }
-            8 -> {
-                if (tithi.number == 5) list.add(FestivalInfo("Vivaha Panchami", "विवाह पञ्चमी", false, true))
-                if (tithi.number == 15) list.add(FestivalInfo("Yomari Punhi / Udhauli Parva", "य:मरि पुन्हि / उधौली पर्व", true, true))
-            }
-            10 -> {
-                if (tithi.number == 1) list.add(FestivalInfo("Sonam Lhosar", "सोनाम ल्होसार", true, true))
-                if (tithi.number == 5) list.add(FestivalInfo("Basanta Panchami / Saraswati Puja", "वसन्त पञ्चमी / सरस्वती पूजा", false, true))
-            }
-            11 -> {
-                if (tithi.number == 29) list.add(FestivalInfo("Maha Shivaratri", "महाशिवरात्री", true, true))
-                if (tithi.number == 15) list.add(FestivalInfo("Fagu Purnima (Holi)", "फागु पूर्णिमा (होली)", true, true))
-            }
-            12 -> {
-                if (tithi.number == 30) list.add(FestivalInfo("Ghode Jatra", "घोडेजात्रा", true, true))
-                if (tithi.number == 8) list.add(FestivalInfo("Chaite Dashain", "चैते दशैं", false, true))
-                if (tithi.number == 9) list.add(FestivalInfo("Ram Nawami", "राम नवमी", true, true))
+            candidateTithis.add(kLunarMonth to kTithi)
+        }
+
+        for ((lunarMonth, tNum) in candidateTithis) {
+            when (lunarMonth) {
+                12 -> {
+                    // Chaitra Amanta (ends with Mata Tirtha Aunsi)
+                    if (tNum == 8) list.add(FestivalInfo("Chaite Dashain", "चैते दशैं", false, true))
+                    if (tNum == 9) list.add(FestivalInfo("Ram Nawami", "राम नवमी", true, true))
+                    if (tNum == 30) list.add(FestivalInfo("Mata Tirtha Aunsi (Mother's Day)", "मातातीर्थ औंसी", false, true))
+                }
+                1 -> {
+                    // Baisakh Amanta
+                    if (tNum == 3) list.add(FestivalInfo("Akshaya Tritiya", "अक्षय तृतीया", false, true))
+                    if (tNum == 15) list.add(FestivalInfo("Buddha Jayanti / Ubhauli Parva", "बुद्ध जयन्ती / उभौली पर्व", true, true))
+                }
+                2 -> {
+                    // Jestha Amanta
+                    if (tNum == 6) list.add(FestivalInfo("Kumar Shasthi / Sithi Nakha", "कुमार षष्ठी / सिथि नखः", false, true))
+                }
+                3 -> {
+                    // Ashadh Amanta
+                    if (tNum == 11) list.add(FestivalInfo("Harishayani Ekadashi (Tulasi Ropne)", "हरिशयनी एकादशी", false, true))
+                    if (tNum == 15) list.add(FestivalInfo("Guru Purnima", "गुरु पूर्णिमा", false, true))
+                }
+                4 -> {
+                    // Shrawan Amanta (Shrawan Shukla + Bhadra Krishna)
+                    if (tNum == 5) list.add(FestivalInfo("Nag Panchami", "नाग पञ्चमी", false, true))
+                    if (tNum == 15) list.add(FestivalInfo("Janai Purnima / Raksha Bandhan", "जनै पूर्णिमा / रक्षा बन्धन", true, true))
+                    if (tNum == 16) list.add(FestivalInfo("Gai Jatra", "गाईजात्रा", true, true))
+                    if (tNum == 23) list.add(FestivalInfo("Shree Krishna Janmashtami", "श्रीकृष्ण जन्माष्टमी", true, true))
+                    if (tNum == 30) list.add(FestivalInfo("Kushe Aunsi (Father's Day)", "कुशे औंसी (बुबाको मुख हेर्ने दिन)", false, true))
+                }
+                5 -> {
+                    // Bhadra Amanta (Bhadra Shukla + Ashwin Krishna / Sorha Shraddha)
+                    if (tNum == 3) list.add(FestivalInfo("Haritalika Teej", "हरितालिका तीज", true, true))
+                    if (tNum == 5) list.add(FestivalInfo("Rishi Panchami", "ऋषि पञ्चमी", false, true))
+                    if (tNum == 14) list.add(FestivalInfo("Indra Jatra", "इन्द्रजात्रा", true, true))
+                    if (tNum == 16) list.add(FestivalInfo("Sorha Shraddha Starts (Pitri Paksha)", "सोह्र श्राद्ध सुरु", false, true))
+                    if (tNum == 23) list.add(FestivalInfo("Jitiya Parva", "जितिया पर्व", false, true))
+                }
+                6 -> {
+                    // Ashwin Amanta (Dashain in Shukla Paksha + Kaag/Kukur/Laxmi Puja at end of Krishna Paksha)
+                    if (tNum == 1) list.add(FestivalInfo("Ghatasthapana (Dashain Starts)", "घटस्थापना", true, true))
+                    if (tNum == 7) list.add(FestivalInfo("Fulpati (Dashain)", "फूलपाती", true, true))
+                    if (tNum == 8) list.add(FestivalInfo("Maha Ashtami / Kaal Ratri", "महाष्टमी / कालरात्री", true, true))
+                    if (tNum == 9) list.add(FestivalInfo("Maha Nawami", "महानवमी", true, true))
+                    if (tNum == 10) list.add(FestivalInfo("Vijaya Dashami (Dashain Tika)", "विजया दशमी", true, true))
+                    if (tNum == 11) list.add(FestivalInfo("Papankusha Ekadashi / Dashain Holiday", "पापांकुशा एकादशी / दशैं बिदा", true, true))
+                    if (tNum == 15) list.add(FestivalInfo("Kojagrat Purnima", "कोजाग्रत पूर्णिमा", false, true))
+                    if (tNum == 28) list.add(FestivalInfo("Kaag Tihar", "काग तिहार", false, true))
+                    if (tNum == 29) list.add(FestivalInfo("Kukur Tihar", "कुकुर तिहार", false, true))
+                    if (tNum == 30) list.add(FestivalInfo("Laxmi Puja / Gai Tihar", "लक्ष्मी पूजा / गाई तिहार", true, true))
+                }
+                7 -> {
+                    // Kartik Amanta (Gobardhan/Mha Puja, Bhai Tika, Chhath, Haribodhini Ekadashi)
+                    if (tNum == 1) list.add(FestivalInfo("Gobardhan Puja / Mha Puja", "गोवर्द्धन पूजा / म्हः पूजा", true, true))
+                    if (tNum == 2) list.add(FestivalInfo("Bhai Tika / Kija Puja", "भाइटीका / किजा पूजा", true, true))
+                    if (tNum == 6) list.add(FestivalInfo("Chhath Parva", "छठ पर्व", true, true))
+                    if (tNum == 11) list.add(FestivalInfo("Haribodhini Ekadashi (Tulasi Bibaha)", "हरिबोधिनी एकादशी", false, true))
+                }
+                8 -> {
+                    // Mangsir Amanta
+                    if (tNum == 5) list.add(FestivalInfo("Vivaha Panchami", "विवाह पञ्चमी", false, true))
+                    if (tNum == 15) list.add(FestivalInfo("Yomari Punhi / Udhauli Parva", "य:मरि पुन्हि / उधौली पर्व", true, true))
+                }
+                10 -> {
+                    // Magh Amanta
+                    if (tNum == 1) list.add(FestivalInfo("Sonam Lhosar", "सोनाम ल्होसार", true, true))
+                    if (tNum == 5) list.add(FestivalInfo("Basanta Panchami / Saraswati Puja", "वसन्त पञ्चमी / सरस्वती पूजा", false, true))
+                    if (tNum == 29) list.add(FestivalInfo("Maha Shivaratri", "महाशिवरात्री", true, true))
+                }
+                11 -> {
+                    // Falgun Amanta
+                    if (tNum == 1) list.add(FestivalInfo("Gyalpo Lhosar", "ग्याल्पो ल्होसार", true, true))
+                    if (tNum == 15) list.add(FestivalInfo("Fagu Purnima (Holi)", "फागु पूर्णिमा (होली)", true, true))
+                    if (tNum == 30) list.add(FestivalInfo("Ghode Jatra", "घोडेजात्रा", true, true))
+                }
             }
         }
         return list

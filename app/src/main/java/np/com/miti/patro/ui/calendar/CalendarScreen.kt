@@ -112,7 +112,6 @@ fun CalendarScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        // Minimal Top Navigation Bar: [<] [TODAY] [>]   [+] [BS↔AD] [CFG]
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -187,7 +186,6 @@ fun CalendarScreen(
         Spacer(modifier = Modifier.height(6.dp))
         AsciiTableHorizontalBorder()
 
-        // Month & Year Header (Tappable to open Year/Month Jump Dialog)
         val monthTitle = BsCalendarData.monthName(state.viewingMonth, calNe)
         val yearTitle = BsCalendarData.formatNumber(state.viewingYear, calNe)
         Row(
@@ -215,7 +213,6 @@ fun CalendarScreen(
 
         AsciiTableHorizontalBorder()
 
-        // Swipeable Calendar Table Container (swipe left/right to change BS month)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -234,7 +231,6 @@ fun CalendarScreen(
                     )
                 }
         ) {
-            // Weekday Header Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -271,7 +267,6 @@ fun CalendarScreen(
 
             AsciiTableHorizontalBorder()
 
-            // Monthly Grid Rows (Tap to highlight; Long-press to quick-add event on that date)
             val weeks = state.daysInMonthGrid.chunked(7)
             weeks.forEach { week ->
                 Row(
@@ -331,7 +326,6 @@ fun CalendarScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Minimal Today / Highlighted Date View
         val selectedCell = state.selectedBsDate?.let { sel ->
             state.daysInMonthGrid.filterNotNull().find { it.bsDate == sel }
         }
@@ -363,7 +357,6 @@ fun CalendarScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Monthly Event & Festival List + Collapsible Year-Wide Search [?]
         MonthEventsAndFestivalsBox(
             year = state.viewingYear,
             month = state.viewingMonth,
@@ -382,7 +375,6 @@ fun CalendarScreen(
     }
 
     if (showEventDialog) {
-        // Default date is the highlighted selection if present; otherwise Today's BS date
         EventEditorDialog(
             anchorBsDate = state.effectiveAnchorBsDate,
             existingEvent = editingEvent,
@@ -502,98 +494,86 @@ private fun BsDayCell(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-        // Top Row: Large BS Day Number (16.sp) + AD Day Number (10.sp)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                text = formattedDayText,
-                color = dayNumberColor,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                lineHeight = 16.sp,
-                maxLines = 1
-            )
-            if (showAd) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
                 Text(
-                    text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagari),
-                    color = palette.comment,
+                    text = formattedDayText,
+                    color = dayNumberColor,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    lineHeight = 16.sp,
                     maxLines = 1
                 )
+                if (showAd) {
+                    Text(
+                        text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagari),
+                        color = palette.comment,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        lineHeight = 10.sp,
+                        maxLines = 1
+                    )
+                }
             }
-        }
 
-        // Middle Row: User Event or Festival Title (10.sp)
-        if (events.isNotEmpty()) {
-            val eventMarkerColor = primaryEventColor ?: palette.green
-            val firstTitle = events.first().event.title
-            Text(
-                text = "●${firstTitle.take(5)}",
-                color = eventMarkerColor,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Clip
-            )
-        } else if (showFestivals && day.festivals.isNotEmpty()) {
-            val f = day.festivals.first()
-            val fTitle = if (useDevanagari) f.nepaliTitle else f.englishTitle
-            Text(
-                text = fTitle.take(6),
-                color = if (f.isPublicHoliday) palette.red else palette.orange,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Clip
-            )
-        }
+            if (events.isNotEmpty()) {
+                val eventMarkerColor = primaryEventColor ?: palette.green
+                val firstTitle = events.first().event.title
+                Text(
+                    text = "●${firstTitle.take(5)}",
+                    color = eventMarkerColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    lineHeight = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
+            } else if (showFestivals && day.festivals.isNotEmpty()) {
+                val f = day.festivals.first()
+                val fTitle = if (useDevanagari) f.nepaliTitle else f.englishTitle
+                Text(
+                    text = fTitle.take(6),
+                    color = if (f.isPublicHoliday) palette.red else palette.orange,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
+                    lineHeight = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
+            }
 
-        // Bottom Row: Daily Tithi (10.sp) — highlights Purnima, Aunsi, and Ekadashi
-        if (showTithi) {
-            val tithiColor = when {
-                day.tithi.isPurnima -> palette.yellow
-                day.tithi.isAunsi -> palette.purple
-                day.tithi.isEkadashi -> palette.green
-                else -> palette.comment
+            if (showTithi) {
+                val tithiColor = when {
+                    day.tithi.isPurnima -> palette.yellow
+                    day.tithi.isAunsi -> palette.purple
+                    day.tithi.isEkadashi -> palette.green
+                    else -> palette.comment
+                }
+                Text(
+                    text = day.tithi.gridLabel(useDevanagari),
+                    color = tithiColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (day.tithi.isPurnima || day.tithi.isAunsi || day.tithi.isEkadashi) {
+                        FontWeight.Bold
+                    } else {
+                        FontWeight.Normal
+                    },
+                    fontSize = 10.sp,
+                    lineHeight = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
             }
-            val tithiLabel = if (useDevanagari) {
-                day.tithi.shortLabelNe
-            } else {
-                day.tithi.shortLabel
-            }
-            Text(
-                text = tithiLabel,
-                color = tithiColor,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = if (day.tithi.isPurnima || day.tithi.isAunsi || day.tithi.isEkadashi) {
-                    FontWeight.Bold
-                } else {
-                    FontWeight.Normal
-                },
-                fontSize = 10.sp,
-                lineHeight = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Clip
-            )
-        }
         }
     }
 }
 
-/**
- * Minimal Today / Selected Date strip:
- * Shows BS date, AD date, Lunar Tithi, relative day delta, and any festivals/events on that day.
- */
 @Composable
 private fun MinimalTodayStrip(
     day: BsCalendarDay,
@@ -619,8 +599,6 @@ private fun MinimalTodayStrip(
     } else {
         AppStrings.todayTag(ne)
     }
-    val tithiName = if (ne) day.tithi.nepaliName else day.tithi.englishName
-    val pakshaShort = if (ne) day.tithi.paksha.nepaliName else day.tithi.paksha.shortCode
     val totalDaysInMonth = BsCalendarData.daysInMonth(day.bsDate.year, day.bsDate.month)
     val monthBoundaryMarker = when (day.bsDate.day) {
         1 -> " • ${AppStrings.sankrantiTag(ne)}"
@@ -647,7 +625,7 @@ private fun MinimalTodayStrip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${day.tithi.phaseSymbol} $tithiName ($pakshaShort)$monthBoundaryMarker  |  $adDisplay",
+                text = "${day.tithi.stripDisplay(ne)}$monthBoundaryMarker  |  $adDisplay",
                 color = palette.foreground,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium,
@@ -755,13 +733,6 @@ private data class YearSearchItem(
     val isToday: Boolean
 )
 
-/**
- * Monthly Event & Festival List + Collapsible Year-Wide Search (`[?]`):
- * - Past events (d.bsDate < todayBs) are grayed out
- * - Today's events (d.bsDate == todayBs) are highlighted with selection background & cyan border
- * - Shows inline countdown (`in 4d` / `3d ago`) and year count (`#5`)
- * - Tapping `[?]` opens a 1-line search box that searches across all 12 months of `year`
- */
 @Composable
 private fun MonthEventsAndFestivalsBox(
     year: Int,
@@ -785,7 +756,6 @@ private fun MonthEventsAndFestivalsBox(
     var searchQuery by remember { mutableStateOf("") }
 
     PlaintextBox(header = AppStrings.monthScheduleHeader(ne, monthName, yearStr)) {
-        // Minimal collapsible search toggle row at top-right of the box
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -825,7 +795,6 @@ private fun MonthEventsAndFestivalsBox(
             Spacer(modifier = Modifier.height(6.dp))
             val searchMatches = remember(trimmedQuery, year, allEvents, showFestivals, ne, todayAd) {
                 val results = mutableListOf<YearSearchItem>()
-                // 1. Search all user events resolved in `year`
                 for (ev in allEvents) {
                     if (year < ev.startBsYear) continue
                     val matchesText = ev.title.contains(trimmedQuery, ignoreCase = true) ||
@@ -853,7 +822,6 @@ private fun MonthEventsAndFestivalsBox(
                     )
                 }
 
-                // 2. Search festivals across all 12 months of `year`
                 if (showFestivals) {
                     for (m in 1..12) {
                         val dim = BsCalendarData.daysInMonth(year, m)

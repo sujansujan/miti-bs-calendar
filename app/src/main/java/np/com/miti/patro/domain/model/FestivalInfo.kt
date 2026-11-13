@@ -7,7 +7,7 @@ data class FestivalInfo(
     val nameEn: String,
     val nameNe: String,
     val isPublicHoliday: Boolean,
-    val isLunar: Boolean
+    val isLunar: Boolean = false
 ) {
     val englishTitle: String get() = nameEn
     val nepaliTitle: String get() = nameNe

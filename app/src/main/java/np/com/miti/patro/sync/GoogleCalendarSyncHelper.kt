@@ -1,9 +1,9 @@
 package np.com.miti.patro.sync
 
 import android.Manifest
-import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
@@ -11,42 +11,16 @@ import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.model.MissingDayStrategy
-import java.time.LocalDate
 import java.time.ZoneId
-import java.util.TimeZone
+import java.time.ZonedDateTime
 
 /**
- * Synchronizes repeating Bikram Sambat (BS) events with the device's Google Calendar
- * via Android's local CalendarContract ContentProvider (zero INTERNET permission required).
- *
- * CRITICAL BS RECURRENCE DESIGN:
- * Because Bikram Sambat repeating dates fall on DIFFERENT Gregorian (AD) dates every year
- * (and BS month lengths vary from 29 to 32 days), a standard Google Calendar yearly rule
- * (`RRULE:FREQ=YEARLY`) would wrongly repeat on the same AD date every year.
- *
- * Instead, when you tap `[+GCAL]` on an event (or enable Auto-Sync in Settings), this helper
- * loops through every upcoming BS year `[startYear .. currentBsYear + yearsAhead]`, resolves
- * the exact BS date for that year using [BsDateConverter.resolveAnnualOccurrence], converts
- * each BS year's occurrence to its true Gregorian (AD) date via [BsDateConverter.bsToAd], and
- * inserts/updates each year's occurrence individually in Google Calendar with `RRULE = null`.
+ * Syncs repeating BS events and Shraddha Tithi events to Android's CalendarProvider (Google Calendar)
+ * across N future BS years by computing the exact AD date for each individual BS year.
  */
 object GoogleCalendarSyncHelper {
 
-    private val NEPAL_ZONE: ZoneId = ZoneId.of("Asia/Kathmandu")
-
-    data class SyncResult(
-        val success: Boolean,
-        val syncedOccurrences: Int,
-        val calendarDisplayName: String? = null,
-        val sampleDatesPreview: String = "",
-        val errorCode: ErrorCode? = null
-    )
-
-    enum class ErrorCode {
-        PERMISSION_DENIED,
-        NO_WRITABLE_CALENDAR,
-        PROVIDER_ERROR
-    }
+    private const val SYNC_TAG_PREFIX = "[MITI-BS-EVENT-ID:"
 
     fun hasCalendarPermissions(context: Context): Boolean {
         val readGranted = ContextCompat.checkSelfPermission(
@@ -60,266 +34,169 @@ object GoogleCalendarSyncHelper {
         return readGranted && writeGranted
     }
 
-    private data class TargetCalendar(
-        val id: Long,
-        val displayName: String,
-        val accountName: String
-    )
-
-    private fun findWritableGoogleCalendar(context: Context): TargetCalendar? {
+    private fun findPrimaryWritableCalendarId(context: Context): Long? {
+        if (!hasCalendarPermissions(context)) return null
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
-            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
-            CalendarContract.Calendars.ACCOUNT_NAME,
-            CalendarContract.Calendars.ACCOUNT_TYPE,
             CalendarContract.Calendars.IS_PRIMARY,
             CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL
         )
-        val candidates = mutableListOf<Triple<TargetCalendar, Boolean, Boolean>>()
+        val selection = "${CalendarContract.Calendars.VISIBLE} = 1 AND " +
+            "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ${CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR}"
+
+        var fallbackId: Long? = null
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
-            "${CalendarContract.Calendars.VISIBLE} = 1",
+            selection,
             null,
             null
         )?.use { cursor ->
-            val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars._ID)
-            val nameIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
-            val accNameIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.ACCOUNT_NAME)
-            val accTypeIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.ACCOUNT_TYPE)
-            val primaryIdx = cursor.getColumnIndex(CalendarContract.Calendars.IS_PRIMARY)
-            val accessIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL)
-
+            val idIdx = cursor.getColumnIndex(CalendarContract.Calendars._ID)
+            val primIdx = cursor.getColumnIndex(CalendarContract.Calendars.IS_PRIMARY)
             while (cursor.moveToNext()) {
-                val access = cursor.getInt(accessIdx)
-                if (access >= CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR) {
-                    val id = cursor.getLong(idIdx)
-                    val name = cursor.getString(nameIdx) ?: "Calendar"
-                    val accName = cursor.getString(accNameIdx) ?: ""
-                    val accType = cursor.getString(accTypeIdx) ?: ""
-                    val isPrimary = primaryIdx >= 0 && cursor.getInt(primaryIdx) == 1
-                    val isGoogle = accType.contains("com.google", ignoreCase = true)
-                    candidates.add(Triple(TargetCalendar(id, name, accName), isGoogle, isPrimary))
-                }
+                val calId = cursor.getLong(idIdx)
+                val isPrimary = if (primIdx >= 0) cursor.getInt(primIdx) == 1 else false
+                if (isPrimary) return calId
+                if (fallbackId == null) fallbackId = calId
             }
         }
-        return candidates
-            .sortedWith(
-                compareByDescending<Triple<TargetCalendar, Boolean, Boolean>> { it.second }
-                    .thenByDescending { it.third }
-            )
-            .firstOrNull()?.first
+        return fallbackId
     }
 
-    /**
-     * Syncs a single BS repeating event across all upcoming BS years `[start .. currentBsYear + yearsAhead]`
-     * into Google Calendar so each future BS year lands on its exact converted AD date.
-     */
-    fun syncSingleEvent(
+    fun syncEventAcrossYears(
         context: Context,
-        event: EventEntity,
-        strategy: MissingDayStrategy,
-        yearsAhead: Int = 15,
-        useDevanagari: Boolean = false
-    ): SyncResult {
-        if (!hasCalendarPermissions(context)) {
-            return SyncResult(false, 0, errorCode = ErrorCode.PERMISSION_DENIED)
-        }
-        val targetCal = findWritableGoogleCalendar(context)
-            ?: return SyncResult(false, 0, errorCode = ErrorCode.NO_WRITABLE_CALENDAR)
-
-        return try {
-            val (count, preview) = upsertEventOccurrences(
-                context = context,
-                calendarId = targetCal.id,
-                event = event,
-                strategy = strategy,
-                yearsAhead = yearsAhead,
-                useDevanagari = useDevanagari
-            )
-            SyncResult(
-                success = true,
-                syncedOccurrences = count,
-                calendarDisplayName = targetCal.displayName,
-                sampleDatesPreview = preview
-            )
-        } catch (_: Exception) {
-            SyncResult(false, 0, errorCode = ErrorCode.PROVIDER_ERROR)
-        }
-    }
-
-    /**
-     * Syncs all saved BS repeating events across `[currentBsYear .. currentBsYear + yearsAhead]`
-     * into Google Calendar on their exact per-year BS->AD converted dates.
-     */
-    fun syncAllEvents(
-        context: Context,
-        events: List<EventEntity>,
-        strategy: MissingDayStrategy,
-        yearsAhead: Int = 15,
-        useDevanagari: Boolean = false
-    ): SyncResult {
-        if (!hasCalendarPermissions(context)) {
-            return SyncResult(false, 0, errorCode = ErrorCode.PERMISSION_DENIED)
-        }
-        val targetCal = findWritableGoogleCalendar(context)
-            ?: return SyncResult(false, 0, errorCode = ErrorCode.NO_WRITABLE_CALENDAR)
-
-        return try {
-            var totalSynced = 0
-            var firstPreview = ""
-            for (event in events) {
-                val (c, p) = upsertEventOccurrences(
-                    context = context,
-                    calendarId = targetCal.id,
-                    event = event,
-                    strategy = strategy,
-                    yearsAhead = yearsAhead,
-                    useDevanagari = useDevanagari
-                )
-                totalSynced += c
-                if (firstPreview.isEmpty() && p.isNotEmpty()) {
-                    firstPreview = p
-                }
-            }
-            SyncResult(
-                success = true,
-                syncedOccurrences = totalSynced,
-                calendarDisplayName = targetCal.displayName,
-                sampleDatesPreview = firstPreview
-            )
-        } catch (_: Exception) {
-            SyncResult(false, 0, errorCode = ErrorCode.PROVIDER_ERROR)
-        }
-    }
-
-    fun removeSyncedEvent(context: Context, eventId: Long) {
-        if (!hasCalendarPermissions(context)) return
-        try {
-            context.contentResolver.delete(
-                CalendarContract.Events.CONTENT_URI,
-                "${CalendarContract.Events.UID_2445} LIKE ?",
-                arrayOf("miti_bs_event_${eventId}_%")
-            )
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun upsertEventOccurrences(
-        context: Context,
-        calendarId: Long,
         event: EventEntity,
         strategy: MissingDayStrategy,
         yearsAhead: Int,
-        useDevanagari: Boolean
-    ): Pair<Int, String> {
-        val todayAd = LocalDate.now(NEPAL_ZONE)
-        val currentBsYear = BsDateConverter.adToBs(todayAd).year
-        val startYear = minOf(currentBsYear, event.startBsYear).coerceAtLeast(BsCalendarData.MIN_YEAR)
-        val endBsYear = (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
+        useDevanagari: Boolean = false
+    ): Int {
+        val calId = findPrimaryWritableCalendarId(context) ?: return 0
+        deleteSyncedOccurrences(context, event.id)
 
-        val existingUidToIdMap = findExistingEventIdsByPrefix(context, calendarId, "miti_bs_event_${event.id}_%")
-        var count = 0
-        val previewSamples = mutableListOf<String>()
+        val currentBsYear = BsDateConverter.todayBs().year
+        val startYear = maxOf(currentBsYear, event.startBsYear)
+        val endYear = (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
+        val zoneId = ZoneId.of("Asia/Kathmandu")
 
-        for (bsYear in startYear..endBsYear) {
-            if (bsYear < event.startBsYear) continue
-
-            val resolvedOcc = BsDateConverter.resolveEventOccurrence(
+        var insertedCount = 0
+        for (targetYear in startYear..endYear) {
+            val resolved = BsDateConverter.resolveEventOccurrence(
                 event = event,
-                targetBsYear = bsYear,
+                targetBsYear = targetYear,
                 strategy = strategy
             ) ?: continue
 
-            val resolvedBsDate = resolvedOcc.targetDate
-            // Convert THIS target BS year's BS date to its exact Gregorian (AD) date
-            val adDate = BsDateConverter.bsToAd(resolvedBsDate)
+            val adDate = BsDateConverter.bsToAd(resolved.targetDate)
+            val startZdt = ZonedDateTime.of(
+                adDate.year,
+                adDate.monthValue,
+                adDate.dayOfMonth,
+                event.reminderHour.coerceIn(0, 23),
+                event.reminderMinute.coerceIn(0, 59),
+                0,
+                0,
+                zoneId
+            )
+            val startMillis = startZdt.toInstant().toEpochMilli()
+            val endMillis = startMillis + 60 * 60 * 1000L
 
-            if (bsYear >= currentBsYear && previewSamples.size < 3) {
-                previewSamples.add("$bsYear BS -> $adDate AD")
-            }
-
-            val startMillis = adDate
-                .atTime(event.reminderHour.coerceIn(0, 23), event.reminderMinute.coerceIn(0, 59))
-                .atZone(NEPAL_ZONE)
-                .toInstant()
-                .toEpochMilli()
-            val endMillis = startMillis + 60L * 60L * 1000L
-
-            val uid = "miti_bs_event_${event.id}_${bsYear}"
-            val bsMonthName = BsCalendarData.getMonthName(resolvedBsDate.month, useDevanagari)
-            val bsDayStr = BsCalendarData.formatNumber(resolvedBsDate.day, useDevanagari)
-            val bsYearStr = BsCalendarData.formatNumber(resolvedBsDate.year, useDevanagari)
-
-            val descriptionHeader = if (useDevanagari) {
-                "बिक्रम सम्बत वार्षिक कार्यक्रम: $bsMonthName $bsDayStr, $bsYearStr बि.सं. (इस्वी: $adDate)"
+            val bsMonthName = BsCalendarData.getMonthName(resolved.targetDate.month, useDevanagari)
+            val bsYearStr = BsCalendarData.formatNumber(resolved.targetDate.year, useDevanagari)
+            val bsDayStr = BsCalendarData.formatNumber(resolved.targetDate.day, useDevanagari)
+            val tag = "$SYNC_TAG_PREFIX${event.id}]"
+            val descText = if (useDevanagari) {
+                "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr गते\n${event.note}\n$tag".trim()
             } else {
-                "Bikram Sambat Annual Event: $bsMonthName $bsDayStr, $bsYearStr BS (Gregorian: $adDate AD)"
-            }
-            val fullDescription = buildString {
-                append(descriptionHeader)
-                if (event.note.isNotBlank()) {
-                    append("\n")
-                    append(event.note)
-                }
+                "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}\n$tag".trim()
             }
 
             val values = ContentValues().apply {
-                put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr, $bsYearStr BS)")
-                put(CalendarContract.Events.DESCRIPTION, fullDescription)
+                put(CalendarContract.Events.CALENDAR_ID, calId)
+                put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
+                put(CalendarContract.Events.DESCRIPTION, descText)
                 put(CalendarContract.Events.DTSTART, startMillis)
                 put(CalendarContract.Events.DTEND, endMillis)
-                // Explicitly clear RRULE/RDATE so Google Calendar NEVER repeats on the same AD date
-                putNull(CalendarContract.Events.RRULE)
-                putNull(CalendarContract.Events.RDATE)
-                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getTimeZone("Asia/Kathmandu").id)
-                put(CalendarContract.Events.UID_2445, uid)
-                put(CalendarContract.Events.HAS_ALARM, if (event.reminderEnabled) 1 else 0)
-                put(CalendarContract.Events.EVENT_COLOR, event.resolvedColor.gcalArgb)
+                put(CalendarContract.Events.EVENT_TIMEZONE, "Asia/Kathmandu")
             }
 
-            val existingId = existingUidToIdMap[uid]
-            if (existingId != null) {
-                val updateUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, existingId)
-                context.contentResolver.update(updateUri, values, null, null)
-            } else {
-                val insertedUri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-                val newEventId = insertedUri?.lastPathSegment?.toLongOrNull()
-                if (newEventId != null && event.reminderEnabled) {
-                    val reminderValues = ContentValues().apply {
-                        put(CalendarContract.Reminders.EVENT_ID, newEventId)
+            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            if (uri != null) {
+                insertedCount++
+                val gcalEventId = uri.lastPathSegment?.toLongOrNull()
+                if (gcalEventId != null && event.reminderEnabled) {
+                    val remValues = ContentValues().apply {
+                        put(CalendarContract.Reminders.EVENT_ID, gcalEventId)
                         put(CalendarContract.Reminders.MINUTES, event.reminderDaysBefore * 24 * 60)
                         put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
                     }
-                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, remValues)
                 }
             }
-            count++
         }
-        return count to previewSamples.joinToString(", ")
+        return insertedCount
     }
 
-    private fun findExistingEventIdsByPrefix(
-        context: Context,
-        calendarId: Long,
-        uidPrefixPattern: String
-    ): Map<String, Long> {
-        val map = HashMap<String, Long>()
-        val projection = arrayOf(CalendarContract.Events._ID, CalendarContract.Events.UID_2445)
-        context.contentResolver.query(
-            CalendarContract.Events.CONTENT_URI,
-            projection,
-            "${CalendarContract.Events.CALENDAR_ID} = ? AND ${CalendarContract.Events.UID_2445} LIKE ?",
-            arrayOf(calendarId.toString(), uidPrefixPattern),
-            null
-        )?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val id = cursor.getLong(0)
-                val uid = cursor.getString(1) ?: continue
-                map[uid] = id
-            }
+    fun deleteSyncedOccurrences(context: Context, eventId: Long) {
+        if (!hasCalendarPermissions(context)) return
+        val tag = "$SYNC_TAG_PREFIX$eventId]"
+        try {
+            context.contentResolver.delete(
+                CalendarContract.Events.CONTENT_URI,
+                "${CalendarContract.Events.DESCRIPTION} LIKE ?",
+                arrayOf("%$tag%")
+            )
+        } catch (_: Exception) {
         }
-        return map
+    }
+
+    fun launchSystemCalendarInsertIntent(
+        context: Context,
+        event: EventEntity,
+        strategy: MissingDayStrategy,
+        useDevanagari: Boolean = false
+    ) {
+        val currentBs = BsDateConverter.todayBs()
+        val resolvedThisYear = BsDateConverter.resolveEventOccurrence(event, currentBs.year, strategy)
+        val targetOccurrence = if (resolvedThisYear != null && resolvedThisYear.targetDate >= currentBs) {
+            resolvedThisYear
+        } else {
+            BsDateConverter.resolveEventOccurrence(event, (currentBs.year + 1).coerceAtMost(BsCalendarData.MAX_YEAR), strategy)
+        } ?: return
+
+        val adDate = BsDateConverter.bsToAd(targetOccurrence.targetDate)
+        val zoneId = ZoneId.of("Asia/Kathmandu")
+        val startMillis = ZonedDateTime.of(
+            adDate.year,
+            adDate.monthValue,
+            adDate.dayOfMonth,
+            event.reminderHour.coerceIn(0, 23),
+            event.reminderMinute.coerceIn(0, 59),
+            0,
+            0,
+            zoneId
+        ).toInstant().toEpochMilli()
+
+        val bsMonthName = BsCalendarData.getMonthName(targetOccurrence.targetDate.month, useDevanagari)
+        val bsDayStr = BsCalendarData.formatNumber(targetOccurrence.targetDate.day, useDevanagari)
+        val bsYearStr = BsCalendarData.formatNumber(targetOccurrence.targetDate.year, useDevanagari)
+        val desc = if (useDevanagari) {
+            "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr गते\n${event.note}"
+        } else {
+            "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}"
+        }
+
+        val intent = Intent(Intent.ACTION_INSERT).apply {
+            data = CalendarContract.Events.CONTENT_URI
+            putExtra(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
+            putExtra(CalendarContract.Events.DESCRIPTION, desc)
+            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, startMillis)
+            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, startMillis + 60 * 60 * 1000L)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (_: Exception) {
+        }
     }
 }

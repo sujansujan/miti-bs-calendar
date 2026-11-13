@@ -9,177 +9,167 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * Bidirectional Bikram Sambat (BS) <-> Gregorian (AD) converter and annual
- * event recurrence resolver (supporting both solar Gatey and lunar Shraddha Tithi).
+ * Bidirectional O(1) converter between Bikram Sambat (BS) and Gregorian (AD) dates,
+ * plus annual repeating BS and Lunar Shraddha Tithi event resolution.
  */
 object BsDateConverter {
 
-    /**
-     * Returns 0 for Sunday, 1 for Monday, ..., 6 for Saturday.
-     */
-    fun dayOfWeekIndex(adDate: LocalDate): Int = adDate.dayOfWeek.value % 7
-
     fun bsToAd(bsDate: BsDate): LocalDate = bsToAd(bsDate.year, bsDate.month, bsDate.day)
 
-    /**
-     * O(1) conversion from BS (year, month, day) to Gregorian LocalDate.
-     */
     fun bsToAd(bsYear: Int, bsMonth: Int, bsDay: Int): LocalDate {
-        require(bsMonth in 1..12) { "BS month must be between 1 and 12" }
-        val safeYear = bsYear.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
-        val maxDay = BsCalendarData.getDaysInMonth(safeYear, bsMonth)
+        val clampedYear = bsYear.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        val clampedMonth = bsMonth.coerceIn(1, 12)
+        val maxDay = BsCalendarData.getDaysInMonth(clampedYear, clampedMonth)
         val clampedDay = bsDay.coerceIn(1, maxDay)
 
-        val yearIdx = safeYear - BsCalendarData.MIN_YEAR
-        val totalDaysFrom1970 = BsCalendarData.YEAR_START_OFFSET_FROM_1970[yearIdx].toLong() +
-            BsCalendarData.getDaysBeforeMonthInYear(safeYear, bsMonth).toLong() +
-            (clampedDay - 1).toLong()
-
-        return BsCalendarData.EPOCH_1970_AD_DATE.plusDays(totalDaysFrom1970)
+        val yearIdx = clampedYear - BsCalendarData.MIN_YEAR
+        val daysOffset = BsCalendarData.YEAR_START_DAYS_FROM_MIN[yearIdx] +
+            BsCalendarData.getDaysBeforeMonthInYear(clampedYear, clampedMonth) +
+            (clampedDay - 1)
+        return BsCalendarData.MIN_AD_DATE.plusDays(daysOffset.toLong())
     }
 
-    /**
-     * O(log N) binary-search conversion from Gregorian LocalDate to BS date.
-     */
     fun adToBs(adDate: LocalDate): BsDate {
-        val daysFrom1970 = ChronoUnit.DAYS.between(BsCalendarData.EPOCH_1970_AD_DATE, adDate).toInt()
-        if (daysFrom1970 <= 0) {
+        val totalDays = ChronoUnit.DAYS.between(BsCalendarData.MIN_AD_DATE, adDate).toInt()
+        if (totalDays <= 0) {
             return BsDate(BsCalendarData.MIN_YEAR, 1, 1)
         }
-
-        val offsets = BsCalendarData.YEAR_START_OFFSET_FROM_1970
-        val searchIdx = offsets.binarySearch(daysFrom1970)
-        val yearIdx = if (searchIdx >= 0) {
-            searchIdx
-        } else {
-            (-searchIdx - 2).coerceIn(0, offsets.size - 1)
+        val maxTotalDays = BsCalendarData.YEAR_START_DAYS_FROM_MIN[BsCalendarData.YEAR_COUNT]
+        if (totalDays >= maxTotalDays) {
+            val lastDay = BsCalendarData.getDaysInMonth(BsCalendarData.MAX_YEAR, 12)
+            return BsDate(BsCalendarData.MAX_YEAR, 12, lastDay)
         }
 
-        val bsYear = BsCalendarData.MIN_YEAR + yearIdx
-        var dayInYear = daysFrom1970 - offsets[yearIdx]
-
-        var bsMonth = 1
-        while (bsMonth <= 12) {
-            val dim = BsCalendarData.getDaysInMonth(bsYear, bsMonth)
-            if (dayInYear < dim) break
-            dayInYear -= dim
-            bsMonth++
-        }
-
-        if (bsMonth > 12) {
-            val lastDim = BsCalendarData.getDaysInMonth(bsYear, 12)
-            return BsDate(bsYear, 12, lastDim)
-        }
-
-        val bsDay = (dayInYear + 1).coerceAtLeast(1)
-        return BsDate(bsYear, bsMonth, bsDay)
-    }
-
-    /**
-     * Resolves a Shraddha (Lunar Tithi) annual occurrence inside [bsMonth] of [targetBsYear].
-     * Scans all days in [bsMonth] for the exact sunrise Tithi [shraddhaTithi] (1..30),
-     * falling back to the closest lunar elongation day if the Tithi is kshaya (skipped at sunrise).
-     */
-    fun resolveShraddhaOccurrence(
-        bsMonth: Int,
-        shraddhaTithi: Int,
-        targetBsYear: Int
-    ): ResolvedBsOccurrence? {
-        if (targetBsYear !in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) return null
-        val targetTithi = shraddhaTithi.coerceIn(1, 30)
-        val daysInMonth = BsCalendarData.getDaysInMonth(targetBsYear, bsMonth)
-        val firstDayAd = bsToAd(targetBsYear, bsMonth, 1)
-
-        var bestDay = 1
-        var bestAngleDiff = Double.MAX_VALUE
-        val targetCenterAngle = (targetTithi - 1) * 12.0 + 6.0
-
-        for (day in 1..daysInMonth) {
-            val bsDate = BsDate(targetBsYear, bsMonth, day)
-            val adDate = firstDayAd.plusDays((day - 1).toLong())
-            val tithiInfo = TithiCalculator.calculateTithi(bsDate, adDate)
-            if (tithiInfo.number == targetTithi) {
-                return ResolvedBsOccurrence(
-                    targetDate = bsDate,
-                    originalDay = day,
-                    isClampedOrRolled = false
-                )
-            }
-            val rawDiff = abs(tithiInfo.elongationDeg - targetCenterAngle)
-            val circularDiff = minOf(rawDiff, 360.0 - rawDiff)
-            if (circularDiff < bestAngleDiff) {
-                bestAngleDiff = circularDiff
-                bestDay = day
+        var low = 0
+        var high = BsCalendarData.YEAR_COUNT - 1
+        while (low < high) {
+            val mid = (low + high + 1) ushr 1
+            if (BsCalendarData.YEAR_START_DAYS_FROM_MIN[mid] <= totalDays) {
+                low = mid
+            } else {
+                high = mid - 1
             }
         }
 
-        return ResolvedBsOccurrence(
-            targetDate = BsDate(targetBsYear, bsMonth, bestDay),
-            originalDay = bestDay,
-            isClampedOrRolled = true
-        )
+        val currentYear = BsCalendarData.MIN_YEAR + low
+        val dayInYear = totalDays - BsCalendarData.YEAR_START_DAYS_FROM_MIN[low]
+
+        var currentMonth = 1
+        for (m in 12 downTo 1) {
+            if (BsCalendarData.getDaysBeforeMonthInYear(currentYear, m) <= dayInYear) {
+                currentMonth = m
+                break
+            }
+        }
+        val currentDay = dayInYear - BsCalendarData.getDaysBeforeMonthInYear(currentYear, currentMonth) + 1
+        return BsDate(currentYear, currentMonth, currentDay)
     }
 
+    fun dayOfWeekIndex(adDate: LocalDate): Int {
+        return adDate.dayOfWeek.value % 7
+    }
+
+    fun todayBs(): BsDate = adToBs(LocalDate.now())
+
     /**
-     * Unified resolver for any EventEntity (either standard BS Gatey or Lunar Tithi Shraddha).
+     * Resolves an annual BS event OR an annual Lunar Shraddha Tithi event for [targetBsYear]:
+     * - If [event.isShraddha] is true, evaluates Aparahna (14:00 NST), Sunrise (05:45 NST), and
+     *   Kshaya Tithi across the target BS month. If a 31/32-day solar month contains two occurrences
+     *   of the same Tithi (Day 1-2 and Day 30-32), it picks the single occurrence closest to [event.bsDay]
+     *   in a non-Adhik lunation so a Shraddha never triggers twice in the same month.
+     * - Otherwise, resolves by solar BS month and day using [strategy].
      */
     fun resolveEventOccurrence(
         event: EventEntity,
         targetBsYear: Int,
-        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
+        strategy: MissingDayStrategy
     ): ResolvedBsOccurrence? {
-        return if (event.isShraddha && event.shraddhaTithi in 1..30) {
-            resolveShraddhaOccurrence(
-                bsMonth = event.bsMonth,
-                shraddhaTithi = event.shraddhaTithi,
-                targetBsYear = targetBsYear
-            )
-        } else {
-            resolveAnnualOccurrence(
-                eventMonth = event.bsMonth,
-                eventDay = event.bsDay,
-                targetBsYear = targetBsYear,
-                strategy = strategy
+        if (event.isShraddha && event.shraddhaTithi in 1..30) {
+            val targetTithi = event.shraddhaTithi
+            val daysInTarget = BsCalendarData.getDaysInMonth(targetBsYear, event.bsMonth)
+            val firstAd = bsToAd(targetBsYear, event.bsMonth, 1)
+
+            val exactCandidates = mutableListOf<Int>()
+            for (d in 1..daysInTarget) {
+                val ad = firstAd.plusDays((d - 1).toLong())
+                val tInfo = TithiCalculator.calculateTithiAtSunrise(ad)
+                // Prefer Aparahna Tithi (traditional Shraddha rule), or Sunrise / Kshaya Tithi
+                val matchesAparahna = (tInfo.aparahnaTithiNumber == targetTithi)
+                val matchesSunrise = (tInfo.number == targetTithi && !tInfo.isVriddhiSecondDay)
+                val matchesKshaya = (tInfo.kshayaTithiNumber == targetTithi)
+                if ((matchesAparahna || matchesSunrise || matchesKshaya) && !tInfo.isAdhikMaas) {
+                    // Avoid consecutive-day duplicate if yesterday already matched
+                    if (exactCandidates.isEmpty() || exactCandidates.last() != d - 1) {
+                        exactCandidates.add(d)
+                    }
+                }
+            }
+
+            if (exactCandidates.isNotEmpty()) {
+                val bestDay = exactCandidates.minByOrNull { abs(it - event.bsDay) } ?: exactCandidates.first()
+                return ResolvedBsOccurrence(
+                    targetDate = BsDate(targetBsYear, event.bsMonth, bestDay),
+                    wasAdjusted = false
+                )
+            }
+
+            // Fallback if the month was Adhik or Tithi was at boundary: pick closest Aparahna Tithi
+            val fallbackDay = (1..daysInTarget).minByOrNull { d ->
+                val ad = firstAd.plusDays((d - 1).toLong())
+                val tAp = TithiCalculator.calculateTithiAtAparahna(ad)
+                val diff = abs(tAp - targetTithi)
+                minOf(diff, 30 - diff) * 100 + abs(d - event.bsDay)
+            } ?: 1
+
+            return ResolvedBsOccurrence(
+                targetDate = BsDate(targetBsYear, event.bsMonth, fallbackDay),
+                wasAdjusted = true,
+                adjustmentNote = "Tithi Kshaya fallback to Day $fallbackDay"
             )
         }
+
+        return resolveRepeatingDate(
+            originMonth = event.bsMonth,
+            originDay = event.bsDay,
+            targetBsYear = targetBsYear,
+            strategy = strategy
+        )
     }
 
-    fun resolveAnnualOccurrence(
-        eventMonth: Int,
-        eventDay: Int,
+    fun resolveRepeatingDate(
+        originMonth: Int,
+        originDay: Int,
         targetBsYear: Int,
-        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
+        strategy: MissingDayStrategy
     ): ResolvedBsOccurrence? {
         if (targetBsYear !in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) return null
-        val daysInTargetMonth = BsCalendarData.getDaysInMonth(targetBsYear, eventMonth)
+        val daysInTargetMonth = BsCalendarData.getDaysInMonth(targetBsYear, originMonth)
 
-        if (eventDay <= daysInTargetMonth) {
+        if (originDay <= daysInTargetMonth) {
             return ResolvedBsOccurrence(
-                targetDate = BsDate(targetBsYear, eventMonth, eventDay),
-                originalDay = eventDay,
-                isClampedOrRolled = false
+                targetDate = BsDate(targetBsYear, originMonth, originDay),
+                wasAdjusted = false
             )
         }
 
         return when (strategy) {
-            MissingDayStrategy.CLAMP_TO_LAST_DAY -> {
-                ResolvedBsOccurrence(
-                    targetDate = BsDate(targetBsYear, eventMonth, daysInTargetMonth),
-                    originalDay = eventDay,
-                    isClampedOrRolled = true
-                )
-            }
+            MissingDayStrategy.CLAMP_TO_LAST_DAY -> ResolvedBsOccurrence(
+                targetDate = BsDate(targetBsYear, originMonth, daysInTargetMonth),
+                wasAdjusted = true,
+                adjustmentNote = "Day $originDay clamped to $daysInTargetMonth"
+            )
+
             MissingDayStrategy.ROLL_TO_NEXT_MONTH -> {
-                val overflowDays = eventDay - daysInTargetMonth
-                val nextMonth = if (eventMonth == 12) 1 else eventMonth + 1
-                val nextYear = if (eventMonth == 12) targetBsYear + 1 else targetBsYear
-                if (nextYear > BsCalendarData.MAX_YEAR) null
-                else ResolvedBsOccurrence(
-                    targetDate = BsDate(nextYear, nextMonth, overflowDays),
-                    originalDay = eventDay,
-                    isClampedOrRolled = true
+                val nextMonth = if (originMonth == 12) 1 else originMonth + 1
+                val nextYear = if (originMonth == 12) targetBsYear + 1 else targetBsYear
+                if (nextYear > BsCalendarData.MAX_YEAR) return null
+                ResolvedBsOccurrence(
+                    targetDate = BsDate(nextYear, nextMonth, 1),
+                    wasAdjusted = true,
+                    adjustmentNote = "Day $originDay rolled over to 1 ${BsCalendarData.getMonthName(nextMonth, false)}"
                 )
             }
+
             MissingDayStrategy.SKIP_YEAR -> null
         }
     }

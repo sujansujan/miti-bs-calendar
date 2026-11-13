@@ -40,15 +40,6 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
-private val AD_MONTH_SHORT_EN = arrayOf(
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-)
-
-/**
- * Single unified BS <-> AD Date Converter workspace.
- * Both BS -> AD and AD -> BS modes edit the exact same synchronized date in one place.
- */
 @Composable
 fun DateConverterScreen(
     initialBsDate: BsDate,
@@ -61,7 +52,6 @@ fun DateConverterScreen(
     val ne = useDevanagari
     val scrollState = rememberScrollState()
 
-    // Single synchronized date state (stored as BsDate; AD is derived losslessly)
     var isBsInputMode by remember { mutableStateOf(true) }
     var currentBsDate by remember { mutableStateOf(initialBsDate) }
 
@@ -93,7 +83,6 @@ fun DateConverterScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
-        // Top Bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -115,11 +104,9 @@ fun DateConverterScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Unified Converter Box
         PlaintextBox(
             header = if (isBsInputMode) AppStrings.bsToAdBoxHeader(ne) else AppStrings.adToBsBoxHeader(ne)
         ) {
-            // Mode Switcher Row: [*BS -> AD*]   [AD -> BS]
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -144,7 +131,6 @@ fun DateConverterScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             if (isBsInputMode) {
-                // BS Input Controls
                 val maxBsDay = BsCalendarData.daysInMonth(currentBsDate.year, currentBsDate.month)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -174,7 +160,6 @@ fun DateConverterScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 4x3 BS Month Grid
                 for (row in 0 until 4) {
                     Row(
                         modifier = Modifier
@@ -206,7 +191,6 @@ fun DateConverterScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // BS Day Stepper
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -233,7 +217,6 @@ fun DateConverterScreen(
                     })
                 }
             } else {
-                // AD Input Controls
                 val maxAdDay = YearMonth.of(currentAdDate.year, currentAdDate.monthValue).lengthOfMonth()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -263,7 +246,6 @@ fun DateConverterScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 4x3 AD Month Grid
                 for (row in 0 until 4) {
                     Row(
                         modifier = Modifier
@@ -295,7 +277,6 @@ fun DateConverterScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // AD Day Stepper
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -327,7 +308,6 @@ fun DateConverterScreen(
             AsciiHorizontalRule()
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Unified Live Result Block
             val wdIndex = BsDateConverter.dayOfWeekIndex(currentAdDate)
             val wdName = if (ne) BsCalendarData.weekdayFull(wdIndex, true) else BsCalendarData.weekdayShort(wdIndex, false)
             val wdShort = BsCalendarData.weekdayShort(wdIndex, ne)
@@ -350,13 +330,8 @@ fun DateConverterScreen(
                 fontSize = 15.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
-            val tithiDisplay = if (ne) {
-                "${tithi.phaseSymbol} ${tithi.nepaliName} (${tithi.paksha.nepaliName})"
-            } else {
-                "${tithi.phaseSymbol} ${tithi.englishName} (${tithi.paksha.shortCode})"
-            }
             Text(
-                text = "${AppStrings.tithiLabel(ne)} $tithiDisplay",
+                text = "${AppStrings.tithiLabel(ne)} ${tithi.stripDisplay(ne)}",
                 color = palette.cyan,
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp

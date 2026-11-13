@@ -1,8 +1,6 @@
 package np.com.miti.patro.ui.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,32 +24,29 @@ import np.com.miti.patro.data.preferences.ThemeMode
 import np.com.miti.patro.data.preferences.UserSettings
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.model.MissingDayStrategy
-import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
-import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
 @Composable
 fun SettingsScreen(
     settings: UserSettings,
-    statusBannerMessage: String?,
-    onDismissBanner: () -> Unit,
-    onBack: () -> Unit,
-    onThemeModeChanged: (ThemeMode) -> Unit,
-    onMissingDayStrategyChanged: (MissingDayStrategy) -> Unit,
-    onShowTithiChanged: (Boolean) -> Unit,
-    onShowGregorianChanged: (Boolean) -> Unit,
-    onShowPublicFestivalsChanged: (Boolean) -> Unit,
-    onNepaliScriptModeChanged: (NepaliScriptMode) -> Unit,
-    onDefaultReminderTimeChanged: (Int, Int) -> Unit,
-    onDefaultReminderDaysBeforeChanged: (Int) -> Unit,
-    onSyncToGoogleCalendarChanged: (Boolean) -> Unit,
-    onGoogleSyncYearsAheadChanged: (Int) -> Unit,
-    onSyncAllToGoogleCalendarNow: () -> Unit,
-    onExportBackupClicked: () -> Unit,
-    onImportBackupClicked: () -> Unit
+    hasCalendarPermission: Boolean,
+    onBackToCalendar: () -> Unit,
+    onSelectTheme: (ThemeMode) -> Unit,
+    onSelectStrategy: (MissingDayStrategy) -> Unit,
+    onSelectNepaliScriptMode: (NepaliScriptMode) -> Unit,
+    onToggleGregorianInGrid: (Boolean) -> Unit,
+    onToggleTithiInGrid: (Boolean) -> Unit,
+    onTogglePublicFestivals: (Boolean) -> Unit,
+    onUpdateDefaultReminderTime: (Int, Int) -> Unit,
+    onUpdateDefaultReminderDaysBefore: (Int) -> Unit,
+    onToggleGoogleCalendarSync: (Boolean) -> Unit,
+    onUpdateGoogleSyncYearsAhead: (Int) -> Unit,
+    onSyncAllEventsToGoogleNow: () -> Unit,
+    onExportBackupJson: () -> Unit,
+    onImportBackupJson: () -> Unit
 ) {
     val palette = LocalMitiPalette.current
     val ne = settings.useDevanagariEverywhere
@@ -71,7 +66,7 @@ fun SettingsScreen(
         ) {
             BracketButton(
                 label = AppStrings.backToCalendar(ne),
-                onClick = onBack,
+                onClick = onBackToCalendar,
                 textColor = palette.cyan
             )
             Text(
@@ -83,262 +78,153 @@ fun SettingsScreen(
             )
         }
 
-        if (statusBannerMessage != null) {
-            Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlaintextBox(header = AppStrings.themeSectionHeader(ne)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(palette.surface)
-                    .border(1.dp, palette.cyan)
-                    .padding(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                ThemeMode.entries.forEach { mode ->
+                    BracketButton(
+                        label = mode.label,
+                        highlighted = (settings.themeMode == mode),
+                        onClick = { onSelectTheme(mode) }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlaintextBox(header = AppStrings.scriptSectionHeader(ne)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                NepaliScriptMode.entries.forEach { mode ->
+                    BracketButton(
+                        label = if (ne) mode.labelNe else mode.labelEn,
+                        highlighted = (settings.nepaliScriptMode == mode),
+                        onClick = { onSelectNepaliScriptMode(mode) }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlaintextBox(header = AppStrings.gridDisplayHeader(ne)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BracketButton(
+                    label = "${if (settings.showGregorianSubDate) "[X]" else "[ ]"} ${AppStrings.showAdToggle(ne)}",
+                    highlighted = settings.showGregorianSubDate,
+                    onClick = { onToggleGregorianInGrid(!settings.showGregorianSubDate) }
+                )
+                BracketButton(
+                    label = "${if (settings.showTithiInGrid) "[X]" else "[ ]"} ${AppStrings.showTithiToggle(ne)}",
+                    highlighted = settings.showTithiInGrid,
+                    onClick = { onToggleTithiInGrid(!settings.showTithiInGrid) }
+                )
+                BracketButton(
+                    label = "${if (settings.showPublicFestivals) "[X]" else "[ ]"} ${AppStrings.showFestivalsToggle(ne)}",
+                    highlighted = settings.showPublicFestivals,
+                    onClick = { onTogglePublicFestivals(!settings.showPublicFestivals) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlaintextBox(header = AppStrings.missingDayHeader(ne)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                MissingDayStrategy.entries.forEach { strat ->
+                    BracketButton(
+                        label = strat.displayLabel,
+                        highlighted = (settings.missingDayStrategy == strat),
+                        onClick = { onSelectStrategy(strat) }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PlaintextBox(header = AppStrings.defaultReminderHeader(ne)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = statusBannerMessage,
+                    text = BsCalendarData.formatTime24h(settings.defaultReminderHour, settings.defaultReminderMinute, ne),
                     color = palette.cyan,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                BracketButton(label = "X", onClick = onDismissBanner, textColor = palette.comment)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 1. Theme
-        PlaintextBox(header = AppStrings.themeSectionHeader(ne)) {
-            listOf(
-                ThemeMode.SYSTEM to AppStrings.themeSystem(ne),
-                ThemeMode.ALUCARD to AppStrings.themeAlucard(ne),
-                ThemeMode.DRACULA to AppStrings.themeDracula(ne)
-            ).forEach { (mode, label) ->
-                val selected = settings.themeMode == mode
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onThemeModeChanged(mode) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selected) "(*) " else "( ) ",
-                        color = if (selected) palette.cyan else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = label,
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 2. Language & Display
-        PlaintextBox(header = AppStrings.displaySectionHeader(ne)) {
-            listOf(
-                NepaliScriptMode.ENGLISH to AppStrings.langEnglishEverywhere(ne),
-                NepaliScriptMode.CALENDAR_TAB_ONLY to AppStrings.langCalendarTabOnly(ne),
-                NepaliScriptMode.EVERYWHERE to AppStrings.langNepaliEverywhere(ne)
-            ).forEach { (mode, label) ->
-                val selected = settings.nepaliScriptMode == mode
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNepaliScriptModeChanged(mode) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selected) "(*) " else "( ) ",
-                        color = if (selected) palette.cyan else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = label,
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            AsciiHorizontalRule()
-            Spacer(modifier = Modifier.height(4.dp))
-
-            PlaintextToggleRow(
-                label = AppStrings.showTithiToggle(ne),
-                checked = settings.showTithiInGrid,
-                onCheckedChange = onShowTithiChanged
-            )
-            PlaintextToggleRow(
-                label = AppStrings.showAdToggle(ne),
-                checked = settings.showGregorianInGrid,
-                onCheckedChange = onShowGregorianChanged
-            )
-            PlaintextToggleRow(
-                label = AppStrings.showFestivalsToggle(ne),
-                checked = settings.showPublicFestivals,
-                onCheckedChange = onShowPublicFestivalsChanged
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 3. Short BS Month Rule
-        PlaintextBox(header = AppStrings.missingDaySectionHeader(ne)) {
-            MissingDayStrategy.values().forEach { strategy ->
-                val selected = settings.defaultMissingDayStrategy == strategy
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onMissingDayStrategyChanged(strategy) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selected) "(*) " else "( ) ",
-                        color = if (selected) palette.cyan else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        text = strategy.label(ne),
-                        color = if (selected) palette.foreground else palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // 4. Default Reminder
-        PlaintextBox(header = AppStrings.reminderSectionHeader(ne)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.defaultHourLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BracketButton(label = "-", onClick = {
-                        onDefaultReminderTimeChanged(
-                            (settings.defaultReminderHour + 23) % 24,
-                            settings.defaultReminderMinute
-                        )
-                    })
-                    val hh = BsCalendarData.formatNumberPadded(settings.defaultReminderHour, ne)
-                    val mm = BsCalendarData.formatNumberPadded(settings.defaultReminderMinute, ne)
-                    Text(
-                        text = "$hh:$mm",
-                        color = palette.cyan,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    BracketButton(label = "+", onClick = {
-                        onDefaultReminderTimeChanged(
-                            (settings.defaultReminderHour + 1) % 24,
-                            settings.defaultReminderMinute
-                        )
-                    })
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.defaultDaysBeforeLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(
-                        0 to AppStrings.sameDay(ne),
-                        1 to AppStrings.oneDayBefore(ne),
-                        2 to AppStrings.twoDaysBefore(ne)
-                    ).forEach { (days, label) ->
-                        BracketButton(
-                            label = label,
-                            highlighted = settings.defaultReminderDaysBefore == days,
-                            onClick = { onDefaultReminderDaysBeforeChanged(days) }
-                        )
-                    }
+                    BracketButton("-1h", onClick = {
+                        onUpdateDefaultReminderTime((settings.defaultReminderHour + 23) % 24, settings.defaultReminderMinute)
+                    })
+                    BracketButton("+1h", onClick = {
+                        onUpdateDefaultReminderTime((settings.defaultReminderHour + 1) % 24, settings.defaultReminderMinute)
+                    })
+                    BracketButton("+15m", onClick = {
+                        onUpdateDefaultReminderTime(settings.defaultReminderHour, (settings.defaultReminderMinute + 15) % 60)
+                    })
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(0, 1, 3, 7).forEach { d ->
+                    val label = if (d == 0) AppStrings.todayTag(ne) else "-${BsCalendarData.formatNumber(d, ne)}d"
+                    BracketButton(
+                        label = label,
+                        highlighted = (settings.defaultReminderDaysBefore == d),
+                        onClick = { onUpdateDefaultReminderDaysBefore(d) }
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 5. Google Calendar Sync
-        PlaintextBox(header = AppStrings.gcalSectionHeader(ne)) {
-            PlaintextToggleRow(
-                label = AppStrings.gcalAutoSyncToggle(ne),
-                checked = settings.syncToGoogleCalendar,
-                onCheckedChange = onSyncToGoogleCalendarChanged
+        PlaintextBox(header = AppStrings.gcalSyncHeader(ne)) {
+            BracketButton(
+                label = "${if (settings.syncToGoogleCalendar) "[X]" else "[ ]"} ${AppStrings.autoSyncToggle(ne)}",
+                highlighted = settings.syncToGoogleCalendar,
+                onClick = { onToggleGoogleCalendarSync(!settings.syncToGoogleCalendar) }
             )
-
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = AppStrings.gcalYearsAheadLabel(ne),
+                    text = "${AppStrings.yearsAheadLabel(ne)} ${BsCalendarData.formatNumber(settings.googleSyncYearsAhead, ne)}",
                     color = palette.foreground,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 13.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(5, 15, 30).forEach { yrs ->
-                        val label = BsCalendarData.formatNumber(yrs, ne) + (if (ne) "व" else "y")
                         BracketButton(
-                            label = label,
-                            highlighted = settings.googleSyncYearsAhead == yrs,
-                            onClick = { onGoogleSyncYearsAheadChanged(yrs) }
+                            label = "${BsCalendarData.formatNumber(yrs, ne)}y",
+                            highlighted = (settings.googleSyncYearsAhead == yrs),
+                            onClick = { onUpdateGoogleSyncYearsAhead(yrs) }
                         )
                     }
-                    BracketButton(
-                        label = AppStrings.gcalSyncNowBtn(ne),
-                        onClick = onSyncAllToGoogleCalendarNow,
-                        textColor = palette.green,
-                        highlighted = true
-                    )
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            BracketButton(
+                label = AppStrings.syncAllNowBtn(ne),
+                onClick = onSyncAllEventsToGoogleNow,
+                textColor = palette.cyan
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 6. Backup & Restore (Export / Import .json)
         PlaintextBox(header = AppStrings.backupSectionHeader(ne)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -346,14 +232,13 @@ fun SettingsScreen(
             ) {
                 BracketButton(
                     label = AppStrings.exportBackupBtn(ne),
-                    onClick = onExportBackupClicked,
-                    textColor = palette.green,
-                    highlighted = true
+                    onClick = onExportBackupJson,
+                    textColor = palette.green
                 )
                 BracketButton(
                     label = AppStrings.importBackupBtn(ne),
-                    onClick = onImportBackupClicked,
-                    textColor = palette.cyan
+                    onClick = onImportBackupJson,
+                    textColor = palette.orange
                 )
             }
         }

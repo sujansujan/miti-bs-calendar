@@ -1,4 +1,4 @@
-package np.com.miti.patro.reminder
+package np.com.miti.patro.notifications
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -35,11 +35,10 @@ object NotificationHelper {
         context: Context,
         eventId: Long,
         title: String,
-        bsDateLabel: String,
-        note: String
+        bsDateFormatted: String,
+        note: String,
+        yearsElapsed: Int
     ) {
-        createNotificationChannel(context)
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
                 context,
@@ -58,22 +57,24 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val contentText = if (note.isNotBlank()) {
-            "$bsDateLabel — $note"
-        } else {
-            bsDateLabel
+        val anniversarySuffix = if (yearsElapsed > 0) " (Year #$yearsElapsed)" else ""
+        val body = buildString {
+            append("BS Date: ").append(bsDateFormatted).append(anniversarySuffix)
+            if (note.isNotBlank()) {
+                append("\n").append(note)
+            }
         }
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_miti)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_calendar)
             .setContentTitle(title)
-            .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
 
-        NotificationManagerCompat.from(context).notify(eventId.toInt(), builder.build())
+        NotificationManagerCompat.from(context).notify(eventId.toInt(), notification)
     }
 }

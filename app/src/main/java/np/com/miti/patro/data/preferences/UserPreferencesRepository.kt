@@ -1,6 +1,7 @@
 package np.com.miti.patro.data.preferences
 
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -9,82 +10,32 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import np.com.miti.patro.domain.model.MissingDayStrategy
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "miti_settings")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "miti_user_settings")
 
-enum class ThemeMode(
-    val key: String,
-    val labelEn: String,
-    val labelNe: String
-) {
-    SYSTEM(
-        key = "SYSTEM",
-        labelEn = "System (Alucard Light / Dracula Dark)",
-        labelNe = "प्रणाली अनुसार (आलुकार्ड उज्यालो / ड्राकुला अँध्यारो)"
-    ),
-    ALUCARD(
-        key = "ALUCARD",
-        labelEn = "Alucard (Light)",
-        labelNe = "आलुकार्ड (उज्यालो)"
-    ),
-    DRACULA(
-        key = "DRACULA",
-        labelEn = "Dracula (Dark)",
-        labelNe = "ड्राकुला (अँध्यारो)"
-    );
-
-    val label: String get() = labelEn
-    fun label(useDevanagari: Boolean): String = if (useDevanagari) labelNe else labelEn
+enum class ThemeMode(val key: String, val label: String) {
+    SYSTEM("SYSTEM", "System Auto"),
+    ALUCARD("ALUCARD", "Alucard (Lokta Light)"),
+    DRACULA("DRACULA", "Dracula (Dark)");
 
     companion object {
-        fun fromKey(key: String?): ThemeMode =
-            entries.firstOrNull { it.key == key } ?: SYSTEM
+        fun fromKey(key: String?): ThemeMode = entries.find { it.key == key } ?: SYSTEM
     }
 }
 
-/**
- * Controls where Nepali text & Devanagari numerals are used:
- * - ENGLISH: English everywhere
- * - CALENDAR_TAB_ONLY: Nepali inside the Calendar tab (grid, tithis, festivals, day details),
- *   while Settings, Date Converter, and Dialogs remain in English
- * - EVERYWHERE: Nepali across all tabs, dialogs, notifications, and Settings
- */
-enum class NepaliScriptMode(
-    val key: String,
-    val labelEn: String,
-    val labelNe: String
-) {
-    ENGLISH(
-        key = "ENGLISH",
-        labelEn = "English everywhere",
-        labelNe = "अंग्रेजी (सबै ठाउँमा)"
-    ),
-    CALENDAR_TAB_ONLY(
-        key = "CALENDAR_TAB_ONLY",
-        labelEn = "Nepali on Calendar tab only",
-        labelNe = "पात्रो ट्याबमा मात्र नेपाली (अन्यत्र अंग्रेजी)"
-    ),
-    EVERYWHERE(
-        key = "EVERYWHERE",
-        labelEn = "Nepali everywhere (All tabs & Settings)",
-        labelNe = "नेपाली (सबै ट्याब र सेटिङहरूमा)"
-    );
-
-    fun label(useDevanagari: Boolean): String = if (useDevanagari) labelNe else labelEn
+enum class NepaliScriptMode(val key: String, val labelEn: String, val labelNe: String) {
+    ENGLISH("ENGLISH", "English", "अंग्रेजी"),
+    CALENDAR_TAB_ONLY("CALENDAR_TAB_ONLY", "Calendar Tab Only", "पात्रो मात्र"),
+    EVERYWHERE("EVERYWHERE", "Whole App (नेपाली)", "पूरै एप (नेपाली)");
 
     companion object {
-        fun fromKey(key: String?, legacyUseDevanagari: Boolean = false): NepaliScriptMode {
-            if (!key.isNullOrBlank()) {
-                entries.firstOrNull { it.key == key }?.let { return it }
-            }
-            return if (legacyUseDevanagari) EVERYWHERE else ENGLISH
-        }
+        fun fromKey(key: String?): NepaliScriptMode = entries.find { it.key == key } ?: ENGLISH
     }
 }
 
+@Immutable
 data class UserSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val missingDayStrategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY,
@@ -98,17 +49,12 @@ data class UserSettings(
     val syncToGoogleCalendar: Boolean = false,
     val googleSyncYearsAhead: Int = 15
 ) {
-    val defaultMissingDayStrategy: MissingDayStrategy get() = missingDayStrategy
-    val showGregorianInGrid: Boolean get() = showGregorianSubDate
-
-    /** True when the Calendar tab should render in Nepali (either Calendar-tab-only or Everywhere). */
     val useDevanagari: Boolean
-        get() = nepaliScriptMode == NepaliScriptMode.CALENDAR_TAB_ONLY ||
-            nepaliScriptMode == NepaliScriptMode.EVERYWHERE
-
-    /** True only when the user wants Nepali across Settings, Date Converter, and dialogs too. */
+        get() = nepaliScriptMode != NepaliScriptMode.ENGLISH
     val useDevanagariEverywhere: Boolean
         get() = nepaliScriptMode == NepaliScriptMode.EVERYWHERE
+    val showGregorianInGrid: Boolean get() = showGregorianSubDate
+    val defaultMissingDayStrategy: MissingDayStrategy get() = missingDayStrategy
 }
 
 class UserPreferencesRepository(private val context: Context) {
@@ -116,9 +62,9 @@ class UserPreferencesRepository(private val context: Context) {
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val MISSING_DAY_STRATEGY = stringPreferencesKey("missing_day_strategy")
-        val USE_DEVANAGARI = booleanPreferencesKey("use_devanagari")
         val NEPALI_SCRIPT_MODE = stringPreferencesKey("nepali_script_mode")
-        val SHOW_GREGORIAN_SUB_DATE = booleanPreferencesKey("show_gregorian_sub_date")
+        val LEGACY_USE_DEVANAGARI = booleanPreferencesKey("use_devanagari_numerals")
+        val SHOW_GREGORIAN_SUB = booleanPreferencesKey("show_gregorian_sub_date")
         val SHOW_TITHI_IN_GRID = booleanPreferencesKey("show_tithi_in_grid")
         val SHOW_PUBLIC_FESTIVALS = booleanPreferencesKey("show_public_festivals")
         val DEFAULT_REMINDER_HOUR = intPreferencesKey("default_reminder_hour")
@@ -128,27 +74,30 @@ class UserPreferencesRepository(private val context: Context) {
         val GOOGLE_SYNC_YEARS_AHEAD = intPreferencesKey("google_sync_years_ahead")
     }
 
-    val settingsFlow: Flow<UserSettings> = context.dataStore.data.map { prefs ->
-        val legacyNe = prefs[Keys.USE_DEVANAGARI] ?: false
-        val scriptMode = NepaliScriptMode.fromKey(prefs[Keys.NEPALI_SCRIPT_MODE], legacyNe)
+    val userSettingsFlow: Flow<UserSettings> = context.dataStore.data.map { prefs ->
+        val rawScriptMode = prefs[Keys.NEPALI_SCRIPT_MODE]
+        val resolvedScriptMode = if (rawScriptMode != null) {
+            NepaliScriptMode.fromKey(rawScriptMode)
+        } else if (prefs[Keys.LEGACY_USE_DEVANAGARI] == true) {
+            NepaliScriptMode.EVERYWHERE
+        } else {
+            NepaliScriptMode.ENGLISH
+        }
+
         UserSettings(
             themeMode = ThemeMode.fromKey(prefs[Keys.THEME_MODE]),
             missingDayStrategy = MissingDayStrategy.fromKey(prefs[Keys.MISSING_DAY_STRATEGY]),
-            nepaliScriptMode = scriptMode,
-            showGregorianSubDate = prefs[Keys.SHOW_GREGORIAN_SUB_DATE] ?: true,
+            nepaliScriptMode = resolvedScriptMode,
+            showGregorianSubDate = prefs[Keys.SHOW_GREGORIAN_SUB] ?: true,
             showTithiInGrid = prefs[Keys.SHOW_TITHI_IN_GRID] ?: true,
             showPublicFestivals = prefs[Keys.SHOW_PUBLIC_FESTIVALS] ?: true,
             defaultReminderHour = prefs[Keys.DEFAULT_REMINDER_HOUR] ?: 7,
             defaultReminderMinute = prefs[Keys.DEFAULT_REMINDER_MINUTE] ?: 0,
             defaultReminderDaysBefore = prefs[Keys.DEFAULT_REMINDER_DAYS_BEFORE] ?: 0,
             syncToGoogleCalendar = prefs[Keys.SYNC_TO_GOOGLE_CALENDAR] ?: false,
-            googleSyncYearsAhead = prefs[Keys.GOOGLE_SYNC_YEARS_AHEAD] ?: 15
+            googleSyncYearsAhead = (prefs[Keys.GOOGLE_SYNC_YEARS_AHEAD] ?: 15).coerceIn(1, 50)
         )
     }
-
-    val userSettingsFlow: Flow<UserSettings> get() = settingsFlow
-
-    suspend fun getSettingsOnce(): UserSettings = settingsFlow.first()
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.key }
@@ -158,24 +107,13 @@ class UserPreferencesRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.MISSING_DAY_STRATEGY] = strategy.key }
     }
 
-    suspend fun setDefaultMissingDayStrategy(strategy: MissingDayStrategy) = setMissingDayStrategy(strategy)
-
     suspend fun setNepaliScriptMode(mode: NepaliScriptMode) {
-        context.dataStore.edit {
-            it[Keys.NEPALI_SCRIPT_MODE] = mode.key
-            it[Keys.USE_DEVANAGARI] = (mode != NepaliScriptMode.ENGLISH)
-        }
-    }
-
-    suspend fun setUseDevanagari(enabled: Boolean) {
-        setNepaliScriptMode(if (enabled) NepaliScriptMode.EVERYWHERE else NepaliScriptMode.ENGLISH)
+        context.dataStore.edit { it[Keys.NEPALI_SCRIPT_MODE] = mode.key }
     }
 
     suspend fun setShowGregorianSubDate(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.SHOW_GREGORIAN_SUB_DATE] = enabled }
+        context.dataStore.edit { it[Keys.SHOW_GREGORIAN_SUB] = enabled }
     }
-
-    suspend fun setShowGregorianInGrid(enabled: Boolean) = setShowGregorianSubDate(enabled)
 
     suspend fun setShowTithiInGrid(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_TITHI_IN_GRID] = enabled }
@@ -192,9 +130,9 @@ class UserPreferencesRepository(private val context: Context) {
         }
     }
 
-    suspend fun setDefaultReminderDaysBefore(days: Int) {
+    suspend fun setDefaultReminderDaysBefore(daysBefore: Int) {
         context.dataStore.edit {
-            it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = days.coerceIn(0, 30)
+            it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = daysBefore.coerceIn(0, 30)
         }
     }
 
@@ -206,20 +144,19 @@ class UserPreferencesRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.GOOGLE_SYNC_YEARS_AHEAD] = years.coerceIn(1, 50) }
     }
 
-    suspend fun restoreSettings(restored: UserSettings) {
+    suspend fun restoreAllSettings(settings: UserSettings) {
         context.dataStore.edit {
-            it[Keys.THEME_MODE] = restored.themeMode.key
-            it[Keys.MISSING_DAY_STRATEGY] = restored.missingDayStrategy.key
-            it[Keys.NEPALI_SCRIPT_MODE] = restored.nepaliScriptMode.key
-            it[Keys.USE_DEVANAGARI] = (restored.nepaliScriptMode != NepaliScriptMode.ENGLISH)
-            it[Keys.SHOW_GREGORIAN_SUB_DATE] = restored.showGregorianSubDate
-            it[Keys.SHOW_TITHI_IN_GRID] = restored.showTithiInGrid
-            it[Keys.SHOW_PUBLIC_FESTIVALS] = restored.showPublicFestivals
-            it[Keys.DEFAULT_REMINDER_HOUR] = restored.defaultReminderHour.coerceIn(0, 23)
-            it[Keys.DEFAULT_REMINDER_MINUTE] = restored.defaultReminderMinute.coerceIn(0, 59)
-            it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = restored.defaultReminderDaysBefore.coerceIn(0, 30)
-            it[Keys.SYNC_TO_GOOGLE_CALENDAR] = restored.syncToGoogleCalendar
-            it[Keys.GOOGLE_SYNC_YEARS_AHEAD] = restored.googleSyncYearsAhead.coerceIn(1, 50)
+            it[Keys.THEME_MODE] = settings.themeMode.key
+            it[Keys.MISSING_DAY_STRATEGY] = settings.missingDayStrategy.key
+            it[Keys.NEPALI_SCRIPT_MODE] = settings.nepaliScriptMode.key
+            it[Keys.SHOW_GREGORIAN_SUB] = settings.showGregorianSubDate
+            it[Keys.SHOW_TITHI_IN_GRID] = settings.showTithiInGrid
+            it[Keys.SHOW_PUBLIC_FESTIVALS] = settings.showPublicFestivals
+            it[Keys.DEFAULT_REMINDER_HOUR] = settings.defaultReminderHour.coerceIn(0, 23)
+            it[Keys.DEFAULT_REMINDER_MINUTE] = settings.defaultReminderMinute.coerceIn(0, 59)
+            it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = settings.defaultReminderDaysBefore.coerceIn(0, 30)
+            it[Keys.SYNC_TO_GOOGLE_CALENDAR] = settings.syncToGoogleCalendar
+            it[Keys.GOOGLE_SYNC_YEARS_AHEAD] = settings.googleSyncYearsAhead.coerceIn(1, 50)
         }
     }
 }

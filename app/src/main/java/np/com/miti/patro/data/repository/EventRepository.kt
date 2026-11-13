@@ -11,25 +11,22 @@ import java.time.LocalDate
 
 @Immutable
 data class ResolvedEventInstance(
-    val entity: EventEntity,
-    val effectiveBsDate: BsDate,
-    val effectiveAdDate: LocalDate,
-    val isClampedOrRolled: Boolean,
-    val yearsElapsed: Int
-) {
-    val event: EventEntity get() = entity
-    val resolvedBsDate: BsDate get() = effectiveBsDate
-    val wasAdjustedForShortMonth: Boolean get() = isClampedOrRolled
-}
+    val event: EventEntity,
+    val resolvedBsDate: BsDate,
+    val resolvedAdDate: LocalDate,
+    val yearsElapsed: Int,
+    val wasAdjustedForMissingDay: Boolean,
+    val adjustmentNote: String?
+)
 
-class EventRepository(
-    private val eventDao: EventDao
-) {
+class EventRepository(private val eventDao: EventDao) {
+
     val allEventsFlow: Flow<List<EventEntity>> = eventDao.observeAllEvents()
-    val allEvents: Flow<List<EventEntity>> get() = allEventsFlow
 
     suspend fun getAllEventsOnce(): List<EventEntity> = eventDao.getAllEventsOnce()
-    suspend fun getAllEventsSnapshot(): List<EventEntity> = eventDao.getAllEventsOnce()
+
+    suspend fun getAllReminderEnabledEvents(): List<EventEntity> =
+        eventDao.getAllReminderEnabledEvents()
 
     suspend fun getEventById(id: Long): EventEntity? = eventDao.getEventById(id)
 
@@ -42,62 +39,45 @@ class EventRepository(
         }
     }
 
-    suspend fun deleteEvent(event: EventEntity) {
-        eventDao.deleteEvent(event)
+    suspend fun replaceAllEvents(events: List<EventEntity>) {
+        eventDao.deleteAllEvents()
+        if (events.isNotEmpty()) {
+            eventDao.insertAllEvents(events)
+        }
     }
 
-    fun resolveEventsForBsMonth(
-        allEvents: List<EventEntity>,
-        bsYear: Int,
-        bsMonth: Int,
-        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
-    ): List<ResolvedEventInstance> {
-        return resolveEventsForMonth(allEvents, bsYear, bsMonth, strategy).values.flatten()
+    suspend fun deleteEvent(event: EventEntity) {
+        eventDao.deleteEvent(event)
     }
 
     fun resolveEventsForMonth(
         allEvents: List<EventEntity>,
         bsYear: Int,
         bsMonth: Int,
-        strategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY
+        strategy: MissingDayStrategy
     ): Map<Int, List<ResolvedEventInstance>> {
         val map = mutableMapOf<Int, MutableList<ResolvedEventInstance>>()
 
         for (event in allEvents) {
             if (bsYear < event.startBsYear) continue
 
-            val occ = BsDateConverter.resolveEventOccurrence(
+            val occurrence = BsDateConverter.resolveEventOccurrence(
                 event = event,
                 targetBsYear = bsYear,
                 strategy = strategy
-            )
-            if (occ != null && occ.targetDate.year == bsYear && occ.targetDate.month == bsMonth) {
-                val instance = ResolvedEventInstance(
-                    entity = event,
-                    effectiveBsDate = occ.targetDate,
-                    effectiveAdDate = BsDateConverter.bsToAd(occ.targetDate),
-                    isClampedOrRolled = occ.isClampedOrRolled,
-                    yearsElapsed = (bsYear - event.startBsYear).coerceAtLeast(0)
-                )
-                map.getOrPut(occ.targetDate.day) { mutableListOf() }.add(instance)
-            }
+            ) ?: continue
 
-            if (!event.isShraddha && bsMonth == 1 && event.bsMonth == 12 && (bsYear - 1) >= event.startBsYear) {
-                val prevYearOcc = BsDateConverter.resolveEventOccurrence(
+            if (occurrence.targetDate.year == bsYear && occurrence.targetDate.month == bsMonth) {
+                val adDate = BsDateConverter.bsToAd(occurrence.targetDate)
+                val instance = ResolvedEventInstance(
                     event = event,
-                    targetBsYear = bsYear - 1,
-                    strategy = strategy
+                    resolvedBsDate = occurrence.targetDate,
+                    resolvedAdDate = adDate,
+                    yearsElapsed = (bsYear - event.startBsYear).coerceAtLeast(0),
+                    wasAdjustedForMissingDay = occurrence.wasAdjusted,
+                    adjustmentNote = occurrence.adjustmentNote
                 )
-                if (prevYearOcc != null && prevYearOcc.targetDate.year == bsYear && prevYearOcc.targetDate.month == 1) {
-                    val instance = ResolvedEventInstance(
-                        entity = event,
-                        effectiveBsDate = prevYearOcc.targetDate,
-                        effectiveAdDate = BsDateConverter.bsToAd(prevYearOcc.targetDate),
-                        isClampedOrRolled = prevYearOcc.isClampedOrRolled,
-                        yearsElapsed = (bsYear - 1 - event.startBsYear).coerceAtLeast(0)
-                    )
-                    map.getOrPut(prevYearOcc.targetDate.day) { mutableListOf() }.add(instance)
-                }
+                map.getOrPut(occurrence.targetDate.day) { mutableListOf() }.add(instance)
             }
         }
         return map

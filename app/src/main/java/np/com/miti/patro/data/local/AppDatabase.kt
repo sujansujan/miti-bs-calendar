@@ -22,23 +22,14 @@ abstract class AppDatabase : RoomDatabase() {
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE bs_repeating_events ADD COLUMN colorKey TEXT NOT NULL DEFAULT 'GREEN'"
-                )
-                db.execSQL(
-                    "UPDATE bs_repeating_events SET colorKey = 'RED' WHERE isPersonalHoliday = 1"
-                )
+                db.execSQL("ALTER TABLE bs_events ADD COLUMN colorKey TEXT NOT NULL DEFAULT 'GREEN'")
             }
         }
 
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE bs_repeating_events ADD COLUMN isShraddha INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE bs_repeating_events ADD COLUMN shraddhaTithi INTEGER NOT NULL DEFAULT 0"
-                )
+                db.execSQL("ALTER TABLE bs_events ADD COLUMN isShraddha INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE bs_events ADD COLUMN shraddhaTithi INTEGER NOT NULL DEFAULT 0")
             }
         }
 

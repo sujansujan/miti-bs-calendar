@@ -5,37 +5,65 @@ import androidx.compose.runtime.Immutable
 enum class Paksha(
     val englishName: String,
     val nepaliName: String,
-    val shortCode: String,
-    val symbol: String
+    val shortCode: String
 ) {
-    SHUKLA("Shukla Paksha", "शुक्ल पक्ष", "S", "◐"),
-    KRISHNA("Krishna Paksha", "कृष्ण पक्ष", "K", "◑")
+    SHUKLA("Shukla Paksha", "शुक्ल पक्ष", "S"),
+    KRISHNA("Krishna Paksha", "कृष्ण पक्ष", "K")
 }
 
 /**
- * Represents the lunar Tithi (1..30) prevailing at sunrise in Nepal (UTC+05:45).
+ * Represents the lunar Tithi (1..30) active at sunrise in Nepal Standard Time (UTC+05:45),
+ * along with Tithi Kshaya (2 Tithis on the same solar day), Vriddhi (1 Tithi spanning 2 sunrises),
+ * and true Amanta Lunar Month (Chandra Maas 1..12 & Adhik Maas / Malamas status).
  */
 @Immutable
 data class TithiInfo(
-    val number: Int,          // 1..30 across synodic month
-    val pakshaDay: Int,       // 1..15 within Paksha
+    val number: Int,
     val paksha: Paksha,
+    val pakshaDay: Int,
     val englishName: String,
     val nepaliName: String,
-    val shortLabelEn: String,
+    val shortLabel: String,
     val shortLabelNe: String,
-    val elongationDeg: Double
+    val phaseSymbol: String,
+    val kshayaTithiNumber: Int? = null,
+    val kshayaEnglishName: String? = null,
+    val kshayaNepaliName: String? = null,
+    val kshayaShortLabel: String? = null,
+    val kshayaShortLabelNe: String? = null,
+    val isVriddhiSecondDay: Boolean = false,
+    val aparahnaTithiNumber: Int = number,
+    val shuddhaLunarMonth: Int = 1,
+    val isAdhikMaas: Boolean = false
 ) {
-    val isPurnima: Boolean get() = number == 15
-    val isAunsi: Boolean get() = number == 30
-    val isEkadashi: Boolean get() = pakshaDay == 11
-    val shortLabel: String get() = shortLabelEn
+    val isPurnima: Boolean get() = number == 15 || kshayaTithiNumber == 15
+    val isAunsi: Boolean get() = number == 30 || kshayaTithiNumber == 30
+    val isEkadashi: Boolean get() = pakshaDay == 11 || (kshayaTithiNumber == 11 || kshayaTithiNumber == 26)
+    val hasKshaya: Boolean get() = kshayaTithiNumber != null
 
-    val phaseSymbol: String
-        get() = when {
-            isPurnima -> "○"
-            isAunsi -> "●"
-            paksha == Paksha.SHUKLA -> "◐"
-            else -> "◑"
+    val nameEn: String get() = englishName
+    val nameNe: String get() = nepaliName
+    val shortLabelEn: String get() = shortLabel
+
+    fun gridLabel(useDevanagari: Boolean): String {
+        return if (useDevanagari) {
+            if (kshayaShortLabelNe != null) "$shortLabelNe/$kshayaShortLabelNe" else shortLabelNe
+        } else {
+            if (kshayaShortLabel != null) "${shortLabel.take(3)}/${kshayaShortLabel.take(2)}" else shortLabel
         }
+    }
+
+    fun stripDisplay(useDevanagari: Boolean): String {
+        return if (useDevanagari) {
+            val base = "$phaseSymbol $nepaliName"
+            val withKshaya = if (kshayaNepaliName != null) "$base + $kshayaNepaliName (तिथि क्षय)" else base
+            val pakshaStr = if (isAdhikMaas) "अधिक मास • ${paksha.nepaliName}" else paksha.nepaliName
+            "$withKshaya ($pakshaStr)"
+        } else {
+            val base = "$phaseSymbol $englishName"
+            val withKshaya = if (kshayaEnglishName != null) "$base + $kshayaEnglishName (Kshaya)" else base
+            val pakshaStr = if (isAdhikMaas) "Adhik • ${paksha.shortCode}" else paksha.shortCode
+            "$withKshaya ($pakshaStr)"
+        }
+    }
 }

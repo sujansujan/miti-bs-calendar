@@ -20,8 +20,8 @@ import java.io.OutputStreamWriter
 object BackupManager {
 
     private const val BACKUP_SCHEMA_VERSION = 1
-    private const val MAX_BACKUP_CHARS = 1_048_576 // 1 MB character cap
-    private const val MAX_IMPORTED_EVENTS = 300    // Safe cap below Android's 500 concurrent alarm limit
+    private const val MAX_BACKUP_CHARS = 1_048_576
+    private const val MAX_IMPORTED_EVENTS = 300
     private const val MAX_TITLE_LENGTH = 100
     private const val MAX_NOTE_LENGTH = 500
 

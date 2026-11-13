@@ -11,17 +11,23 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface EventDao {
 
-    @Query("SELECT * FROM bs_repeating_events ORDER BY bsMonth ASC, bsDay ASC, title ASC")
+    @Query("SELECT * FROM bs_events ORDER BY bsMonth ASC, bsDay ASC, title ASC")
     fun observeAllEvents(): Flow<List<EventEntity>>
 
-    @Query("SELECT * FROM bs_repeating_events ORDER BY bsMonth ASC, bsDay ASC, title ASC")
+    @Query("SELECT * FROM bs_events ORDER BY bsMonth ASC, bsDay ASC, title ASC")
     suspend fun getAllEventsOnce(): List<EventEntity>
 
-    @Query("SELECT * FROM bs_repeating_events WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM bs_events WHERE reminderEnabled = 1")
+    suspend fun getAllReminderEnabledEvents(): List<EventEntity>
+
+    @Query("SELECT * FROM bs_events WHERE id = :id LIMIT 1")
     suspend fun getEventById(id: Long): EventEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: EventEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllEvents(events: List<EventEntity>)
 
     @Update
     suspend fun updateEvent(event: EventEntity)
@@ -29,6 +35,6 @@ interface EventDao {
     @Delete
     suspend fun deleteEvent(event: EventEntity)
 
-    @Query("DELETE FROM bs_repeating_events WHERE id = :id")
-    suspend fun deleteEventById(id: Long)
+    @Query("DELETE FROM bs_events")
+    suspend fun deleteAllEvents()
 }
