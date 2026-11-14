@@ -10,7 +10,7 @@ import kotlin.math.abs
 
 /**
  * Bidirectional O(1) converter between Bikram Sambat (BS) and Gregorian (AD) dates,
- * plus annual repeating BS and Lunar Shraddha Tithi event resolution.
+ * plus annual repeating BS and True Lunar Month (Chandra Maas) Shraddha Tithi event resolution.
  */
 object BsDateConverter {
 
@@ -72,11 +72,33 @@ object BsDateConverter {
     fun todayBs(): BsDate = adToBs(LocalDate.now())
 
     /**
+     * Returns the true Amanta Lunar Month (1=Baisakh..12=Chaitra) for a Shraddha event,
+     * derived from the event's origin BS date (or its stored bsMonth if origin is already in that lunar month).
+     *
+     * Example: A Shraddha created on 2083-05-05 (Bhadra 5, 2083 = Shrawan Shukla Nawami, 7 days before Janai Purnima)
+     * belongs to Amanta Lunar Month 4 (Shrawan Shukla). In 2084 BS, Shrawan Shukla Nawami falls on
+     * 2084-04-25 (Shrawan 25, 2084 — 7 days before Janai Purnima on Bhadra 1), NOT Bhadra 23/24!
+     */
+    fun getShraddhaLunarMonth(event: EventEntity): Int {
+        val originBs = BsDate(
+            year = event.startBsYear.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR),
+            month = event.bsMonth.coerceIn(1, 12),
+            day = event.bsDay.coerceIn(1, BsCalendarData.getDaysInMonth(event.startBsYear, event.bsMonth))
+        )
+        val originAd = bsToAd(originBs)
+        val (shuddhaLunarMonth, _) = TithiCalculator.getLunationInfo(originAd)
+        return shuddhaLunarMonth
+    }
+
+    /**
      * Resolves an annual BS event OR an annual Lunar Shraddha Tithi event for [targetBsYear]:
-     * - If [event.isShraddha] is true, evaluates Aparahna (14:00 NST), Sunrise (05:45 NST), and
-     *   Kshaya Tithi across the target BS month. If a 31/32-day solar month contains two occurrences
-     *   of the same Tithi (Day 1-2 and Day 30-32), it picks the single occurrence closest to [event.bsDay]
-     *   in a non-Adhik lunation so a Shraddha never triggers twice in the same month.
+     * - If [event.isShraddha] is true:
+     *   1. Determines the event's true Amanta Lunar Month (`targetLunarMonth`, e.g., Shrawan Shukla = 4).
+     *   2. Scans the two solar BS months that can host that lunar month (`targetLunarMonth` and `targetLunarMonth + 1`).
+     *   3. Ranks matching days in that true lunar month so a day where BOTH Sunrise and Aparahna match
+     *      (score 4) or Sunrise Udaya Tithi matches (score 3) wins over a Tithi Kshaya day (score 2)
+     *      or an afternoon-only boundary day (score 1) — ensuring a Nawami Shraddha never lands on
+     *      an Ashtami cell when the next day is a full Nawami!
      * - Otherwise, resolves by solar BS month and day using [strategy].
      */
     fun resolveEventOccurrence(
@@ -84,47 +106,77 @@ object BsDateConverter {
         targetBsYear: Int,
         strategy: MissingDayStrategy
     ): ResolvedBsOccurrence? {
+        if (targetBsYear !in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) return null
+
         if (event.isShraddha && event.shraddhaTithi in 1..30) {
             val targetTithi = event.shraddhaTithi
-            val daysInTarget = BsCalendarData.getDaysInMonth(targetBsYear, event.bsMonth)
-            val firstAd = bsToAd(targetBsYear, event.bsMonth, 1)
+            val targetLunarMonth = getShraddhaLunarMonth(event)
 
-            val exactCandidates = mutableListOf<Int>()
-            for (d in 1..daysInTarget) {
-                val ad = firstAd.plusDays((d - 1).toLong())
-                val tInfo = TithiCalculator.calculateTithiAtSunrise(ad)
-                // Prefer Aparahna Tithi (traditional Shraddha rule), or Sunrise / Kshaya Tithi
-                val matchesAparahna = (tInfo.aparahnaTithiNumber == targetTithi)
-                val matchesSunrise = (tInfo.number == targetTithi && !tInfo.isVriddhiSecondDay)
-                val matchesKshaya = (tInfo.kshayaTithiNumber == targetTithi)
-                if ((matchesAparahna || matchesSunrise || matchesKshaya) && !tInfo.isAdhikMaas) {
-                    // Avoid consecutive-day duplicate if yesterday already matched
-                    if (exactCandidates.isEmpty() || exactCandidates.last() != d - 1) {
-                        exactCandidates.add(d)
+            // A lunar month (e.g. Shrawan Amanta = 4) always spans parts of solar BS month M (4 = Shrawan)
+            // and solar BS month M+1 (5 = Bhadra).
+            val nextSolarMonth = (targetLunarMonth % 12) + 1
+            val candidateMonths = if (targetLunarMonth == 12) {
+                listOf(targetBsYear to 12, targetBsYear to 1)
+            } else {
+                listOf(targetBsYear to targetLunarMonth, targetBsYear to nextSolarMonth)
+            }
+
+            var bestDate: BsDate? = null
+            var bestScore = -1
+
+            for ((y, m) in candidateMonths) {
+                val dim = BsCalendarData.getDaysInMonth(y, m)
+                val firstAd = bsToAd(y, m, 1)
+                for (d in 1..dim) {
+                    val ad = firstAd.plusDays((d - 1).toLong())
+                    val tInfo = TithiCalculator.calculateTithiAtSunrise(ad)
+                    if (tInfo.isAdhikMaas) continue
+
+                    val sunriseMatches = (tInfo.number == targetTithi && !tInfo.isVriddhiSecondDay && tInfo.shuddhaLunarMonth == targetLunarMonth)
+                    val aparahnaMatches = (tInfo.aparahnaTithiNumber == targetTithi && tInfo.shuddhaLunarMonth == targetLunarMonth)
+                    val kshayaLunarMonth = if (tInfo.kshayaTithiNumber == 1 && tInfo.number == 30) {
+                        (tInfo.shuddhaLunarMonth % 12) + 1
+                    } else {
+                        tInfo.shuddhaLunarMonth
+                    }
+                    val kshayaMatches = (tInfo.kshayaTithiNumber == targetTithi && kshayaLunarMonth == targetLunarMonth)
+
+                    val score = when {
+                        sunriseMatches && aparahnaMatches -> 4 // Both Sunrise (Udaya) & Aparahna match
+                        sunriseMatches -> 3                    // Sunrise (Udaya) matches
+                        kshayaMatches -> 2                     // Tithi Kshaya (skipped between sunrises)
+                        aparahnaMatches -> 1                   // Afternoon-only match
+                        else -> 0
+                    }
+
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestDate = BsDate(y, m, d)
                     }
                 }
             }
 
-            if (exactCandidates.isNotEmpty()) {
-                val bestDay = exactCandidates.minByOrNull { abs(it - event.bsDay) } ?: exactCandidates.first()
+            if (bestDate != null && bestScore > 0) {
                 return ResolvedBsOccurrence(
-                    targetDate = BsDate(targetBsYear, event.bsMonth, bestDay),
-                    wasAdjusted = false
+                    targetDate = bestDate,
+                    wasAdjusted = (bestScore == 2),
+                    adjustmentNote = if (bestScore == 2) "Tithi Kshaya on ${bestDate.formatIso()}" else null
                 )
             }
 
-            // Fallback if the month was Adhik or Tithi was at boundary: pick closest Aparahna Tithi
-            val fallbackDay = (1..daysInTarget).minByOrNull { d ->
-                val ad = firstAd.plusDays((d - 1).toLong())
-                val tAp = TithiCalculator.calculateTithiAtAparahna(ad)
-                val diff = abs(tAp - targetTithi)
+            // Fallback within the event's stored BS month if no exact lunation match was found
+            val daysInStoredMonth = BsCalendarData.getDaysInMonth(targetBsYear, event.bsMonth)
+            val firstAdStored = bsToAd(targetBsYear, event.bsMonth, 1)
+            val fallbackDay = (1..daysInStoredMonth).minByOrNull { d ->
+                val ad = firstAdStored.plusDays((d - 1).toLong())
+                val tSun = TithiCalculator.rawTithiAtSunrise(ad)
+                val diff = abs(tSun - targetTithi)
                 minOf(diff, 30 - diff) * 100 + abs(d - event.bsDay)
             } ?: 1
 
             return ResolvedBsOccurrence(
                 targetDate = BsDate(targetBsYear, event.bsMonth, fallbackDay),
-                wasAdjusted = true,
-                adjustmentNote = "Tithi Kshaya fallback to Day $fallbackDay"
+                wasAdjusted = true
             )
         }
 

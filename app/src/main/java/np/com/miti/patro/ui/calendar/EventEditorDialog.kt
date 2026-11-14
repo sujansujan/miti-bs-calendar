@@ -146,7 +146,10 @@ fun EventEditorDialog(
                         fontSize = 13.sp
                     )
                 } else {
-                    val mName = BsCalendarData.monthName(effectiveBsDate.month, ne)
+                    val lunarMonthNum = remember(effectiveBsDate) {
+                        TithiCalculator.calculateTithi(effectiveBsDate).shuddhaLunarMonth
+                    }
+                    val mName = BsCalendarData.monthName(lunarMonthNum, ne)
                     val tInfo = TithiCalculator.buildTithiInfo(shraddhaTithi)
                     val tDisplay = if (ne) {
                         "${tInfo.nepaliName} (${tInfo.paksha.nepaliName})"
