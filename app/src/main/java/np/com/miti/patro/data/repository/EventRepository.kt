@@ -59,25 +59,46 @@ class EventRepository(private val eventDao: EventDao) {
         val map = mutableMapOf<Int, MutableList<ResolvedEventInstance>>()
 
         for (event in allEvents) {
-            if (bsYear < event.startBsYear) continue
-
-            val occurrence = BsDateConverter.resolveEventOccurrence(
-                event = event,
-                targetBsYear = bsYear,
-                strategy = strategy
-            ) ?: continue
-
-            if (occurrence.targetDate.year == bsYear && occurrence.targetDate.month == bsMonth) {
-                val adDate = BsDateConverter.bsToAd(occurrence.targetDate)
-                val instance = ResolvedEventInstance(
+            if (bsYear >= event.startBsYear) {
+                val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(
                     event = event,
-                    resolvedBsDate = occurrence.targetDate,
-                    resolvedAdDate = adDate,
-                    yearsElapsed = (bsYear - event.startBsYear).coerceAtLeast(0),
-                    wasAdjustedForMissingDay = occurrence.wasAdjusted,
-                    adjustmentNote = occurrence.adjustmentNote
+                    targetBsYear = bsYear,
+                    strategy = strategy
                 )
-                map.getOrPut(occurrence.targetDate.day) { mutableListOf() }.add(instance)
+                for (occurrence in occurrences) {
+                    if (occurrence.targetDate.year == bsYear && occurrence.targetDate.month == bsMonth) {
+                        val adDate = BsDateConverter.bsToAd(occurrence.targetDate)
+                        val instance = ResolvedEventInstance(
+                            event = event,
+                            resolvedBsDate = occurrence.targetDate,
+                            resolvedAdDate = adDate,
+                            yearsElapsed = (bsYear - event.startBsYear).coerceAtLeast(0),
+                            wasAdjustedForMissingDay = occurrence.wasAdjusted,
+                            adjustmentNote = occurrence.adjustmentNote
+                        )
+                        map.getOrPut(occurrence.targetDate.day) { mutableListOf() }.add(instance)
+                    }
+                }
+            }
+
+            if (bsMonth == 1 && !event.isShraddha && strategy == MissingDayStrategy.ROLL_TO_NEXT_MONTH && bsYear - 1 >= event.startBsYear) {
+                val prevOccurrence = BsDateConverter.resolveEventOccurrence(
+                    event = event,
+                    targetBsYear = bsYear - 1,
+                    strategy = strategy
+                )
+                if (prevOccurrence != null && prevOccurrence.targetDate.year == bsYear && prevOccurrence.targetDate.month == 1) {
+                    val adDate = BsDateConverter.bsToAd(prevOccurrence.targetDate)
+                    val instance = ResolvedEventInstance(
+                        event = event,
+                        resolvedBsDate = prevOccurrence.targetDate,
+                        resolvedAdDate = adDate,
+                        yearsElapsed = ((bsYear - 1) - event.startBsYear).coerceAtLeast(0),
+                        wasAdjustedForMissingDay = prevOccurrence.wasAdjusted,
+                        adjustmentNote = prevOccurrence.adjustmentNote
+                    )
+                    map.getOrPut(prevOccurrence.targetDate.day) { mutableListOf() }.add(instance)
+                }
             }
         }
         return map

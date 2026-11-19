@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import np.com.miti.patro.MitiApplication
 import np.com.miti.patro.domain.engine.BsDateConverter
+import np.com.miti.patro.domain.model.BsDate
 
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -29,19 +30,25 @@ class AlarmReceiver : BroadcastReceiver() {
                     currentBsYear
                 )
 
-                val resolved = BsDateConverter.resolveEventOccurrence(
-                    event = event,
-                    targetBsYear = targetYear,
-                    strategy = settings.missingDayStrategy
-                )
+                val targetMonth = intent.getIntExtra(AlarmScheduler.EXTRA_RESOLVED_BS_MONTH, -1)
+                val targetDay = intent.getIntExtra(AlarmScheduler.EXTRA_RESOLVED_BS_DAY, -1)
+                val targetBsDate = if (targetMonth in 1..12 && targetDay in 1..32) {
+                    BsDate(targetYear, targetMonth, targetDay)
+                } else {
+                    BsDateConverter.resolveEventOccurrence(
+                        event = event,
+                        targetBsYear = targetYear,
+                        strategy = settings.missingDayStrategy
+                    )?.targetDate
+                }
 
-                if (resolved != null) {
+                if (targetBsDate != null) {
                     val yearsElapsed = (targetYear - event.startBsYear).coerceAtLeast(0)
                     NotificationHelper.showEventReminderNotification(
                         context = context,
                         eventId = event.id,
                         title = event.title,
-                        bsDateFormatted = resolved.targetDate.formatHuman(settings.useDevanagari),
+                        bsDateFormatted = targetBsDate.formatHuman(settings.useDevanagari),
                         note = event.note,
                         yearsElapsed = yearsElapsed
                     )

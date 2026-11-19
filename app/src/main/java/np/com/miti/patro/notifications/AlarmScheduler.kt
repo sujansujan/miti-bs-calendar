@@ -8,6 +8,7 @@ import android.os.Build
 import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
+import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -16,6 +17,8 @@ object AlarmScheduler {
 
     const val EXTRA_EVENT_ID = "extra_event_id"
     const val EXTRA_RESOLVED_BS_YEAR = "extra_resolved_bs_year"
+    const val EXTRA_RESOLVED_BS_MONTH = "extra_resolved_bs_month"
+    const val EXTRA_RESOLVED_BS_DAY = "extra_resolved_bs_day"
 
     fun scheduleNextOccurrence(
         context: Context,
@@ -32,34 +35,35 @@ object AlarmScheduler {
         val startSearchYear = maxOf(todayBs.year, event.startBsYear)
 
         for (candidateYear in startSearchYear..BsCalendarData.MAX_YEAR) {
-            val resolved = BsDateConverter.resolveEventOccurrence(
+            val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(
                 event = event,
                 targetBsYear = candidateYear,
                 strategy = strategy
-            ) ?: continue
-
-            val eventAdDate = BsDateConverter.bsToAd(resolved.targetDate)
-            val triggerAdDate = eventAdDate.minusDays(event.reminderDaysBefore.toLong())
-
-            val triggerZdt = ZonedDateTime.of(
-                triggerAdDate.year,
-                triggerAdDate.monthValue,
-                triggerAdDate.dayOfMonth,
-                event.reminderHour.coerceIn(0, 23),
-                event.reminderMinute.coerceIn(0, 59),
-                0,
-                0,
-                ZoneId.systemDefault()
             )
+            for (resolved in occurrences) {
+                val eventAdDate = BsDateConverter.bsToAd(resolved.targetDate)
+                val triggerAdDate = eventAdDate.minusDays(event.reminderDaysBefore.toLong())
 
-            if (triggerZdt.isAfter(nowZdt)) {
-                setExactAlarm(
-                    context = context,
-                    eventId = event.id,
-                    resolvedBsYear = candidateYear,
-                    triggerAtMillis = triggerZdt.toInstant().toEpochMilli()
+                val triggerZdt = ZonedDateTime.of(
+                    triggerAdDate.year,
+                    triggerAdDate.monthValue,
+                    triggerAdDate.dayOfMonth,
+                    event.reminderHour.coerceIn(0, 23),
+                    event.reminderMinute.coerceIn(0, 59),
+                    0,
+                    0,
+                    ZoneId.systemDefault()
                 )
-                return
+
+                if (triggerZdt.isAfter(nowZdt)) {
+                    setExactAlarm(
+                        context = context,
+                        eventId = event.id,
+                        resolvedBsDate = resolved.targetDate,
+                        triggerAtMillis = triggerZdt.toInstant().toEpochMilli()
+                    )
+                    return
+                }
             }
         }
     }
@@ -82,13 +86,15 @@ object AlarmScheduler {
     private fun setExactAlarm(
         context: Context,
         eventId: Long,
-        resolvedBsYear: Int,
+        resolvedBsDate: BsDate,
         triggerAtMillis: Long
     ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             putExtra(EXTRA_EVENT_ID, eventId)
-            putExtra(EXTRA_RESOLVED_BS_YEAR, resolvedBsYear)
+            putExtra(EXTRA_RESOLVED_BS_YEAR, resolvedBsDate.year)
+            putExtra(EXTRA_RESOLVED_BS_MONTH, resolvedBsDate.month)
+            putExtra(EXTRA_RESOLVED_BS_DAY, resolvedBsDate.day)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

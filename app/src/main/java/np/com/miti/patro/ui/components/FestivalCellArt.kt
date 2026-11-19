@@ -74,7 +74,7 @@ object FestivalArtResolver {
 
             if ("ghatasthapana" in en || "घटस्थापना" in ne) return CellArtworkMotif.GHATASTHAPANA
             if ("fulpati" in en || "फूलपाती" in ne) return CellArtworkMotif.FULPATI
-            if ("ashtami" in en || "महाष्टमी" in ne) return CellArtworkMotif.MAHA_ASHTAMI
+            if ("maha ashtami" in en || "महाष्टमी" in ne) return CellArtworkMotif.MAHA_ASHTAMI
             if ("nawami" in en || "महानवमी" in ne || "राम नवमी" in ne) return CellArtworkMotif.MAHA_NAWAMI
             if ("vijaya dashami" in en || "dashain" in en || "विजया दशमी" in ne || "दशैं" in ne) {
                 return CellArtworkMotif.VIJAYA_DASHAMI

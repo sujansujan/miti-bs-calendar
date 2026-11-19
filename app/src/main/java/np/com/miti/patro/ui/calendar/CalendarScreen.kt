@@ -670,8 +670,17 @@ private fun MinimalTodayStrip(
                 val evBadge = AppStrings.formatYearAndCountdownBadge(daysDiff, instance.yearsElapsed, ne)
                 val shraddhaPrefix = if (instance.event.isShraddha) {
                     val tInfo = TithiCalculator.buildTithiInfo(instance.event.shraddhaTithi)
-                    val tShort = if (ne) tInfo.shortLabelNe else tInfo.shortLabelEn
-                    "[${AppStrings.shraddhaTag(ne)}: ${tInfo.paksha.shortCode}-$tShort] "
+                    val amantaMonth = BsDateConverter.getShraddhaLunarMonth(instance.event)
+                    val purnimantaMonth = TithiCalculator.amantaToPurnimantaMonth(
+                        amantaMonth,
+                        instance.event.shraddhaTithi
+                    )
+                    val mName = BsCalendarData.getMonthName(purnimantaMonth, ne)
+                    if (ne) {
+                        "[${AppStrings.shraddhaTag(true)}: $mName ${tInfo.paksha.nepaliName} ${tInfo.nepaliName}] "
+                    } else {
+                        "[${AppStrings.shraddhaTag(false)}: $mName ${tInfo.paksha.shortCode}-${tInfo.shortLabelEn}] "
+                    }
                 } else ""
                 Row(
                     modifier = Modifier
@@ -802,24 +811,26 @@ private fun MonthEventsAndFestivalsBox(
                         (ev.isShraddha && ("shraddha".contains(trimmedQuery, ignoreCase = true) || "श्राद्ध".contains(trimmedQuery)))
                     if (!matchesText) continue
 
-                    val occ = BsDateConverter.resolveEventOccurrence(ev, year, missingDayStrategy) ?: continue
-                    val ad = BsDateConverter.bsToAd(occ.targetDate)
-                    val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
-                    val yrs = (year - ev.startBsYear).coerceAtLeast(0)
-                    val mShort = BsCalendarData.getShortMonthName(occ.targetDate.month, ne)
-                    val dPad = BsCalendarData.formatNumberPadded(occ.targetDate.day, ne)
-                    val shraddhaTag = if (ev.isShraddha) " (${AppStrings.shraddhaTag(ne)})" else ""
-                    results.add(
-                        YearSearchItem(
-                            bsDate = occ.targetDate,
-                            adDate = ad,
-                            label = "$mShort $dPad | ● ${ev.title}$shraddhaTag",
-                            badge = AppStrings.formatYearAndCountdownBadge(daysDiff, yrs, ne),
-                            color = ev.resolvedColor.composeColor(palette),
-                            isPast = occ.targetDate < todayBs,
-                            isToday = occ.targetDate == todayBs
+                    val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(ev, year, missingDayStrategy)
+                    for (occ in occurrences) {
+                        val ad = BsDateConverter.bsToAd(occ.targetDate)
+                        val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
+                        val yrs = (year - ev.startBsYear).coerceAtLeast(0)
+                        val mShort = BsCalendarData.getShortMonthName(occ.targetDate.month, ne)
+                        val dPad = BsCalendarData.formatNumberPadded(occ.targetDate.day, ne)
+                        val shraddhaTag = if (ev.isShraddha) " (${AppStrings.shraddhaTag(ne)})" else ""
+                        results.add(
+                            YearSearchItem(
+                                bsDate = occ.targetDate,
+                                adDate = ad,
+                                label = "$mShort $dPad | ● ${ev.title}$shraddhaTag",
+                                badge = AppStrings.formatYearAndCountdownBadge(daysDiff, yrs, ne),
+                                color = ev.resolvedColor.composeColor(palette),
+                                isPast = occ.targetDate < todayBs,
+                                isToday = occ.targetDate == todayBs
+                            )
                         )
-                    )
+                    }
                 }
 
                 if (showFestivals) {

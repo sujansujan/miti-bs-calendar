@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
+import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.EventColor
@@ -54,7 +55,13 @@ fun EventEditorDialog(
     val palette = LocalMitiPalette.current
     val ne = useDevanagari
 
-    val anchorTithi = remember(anchorBsDate) { TithiCalculator.calculateTithi(anchorBsDate).number }
+    val effectiveBsDate = if (existingEvent != null) {
+        BsDate(existingEvent.originBsYear, existingEvent.bsMonth, existingEvent.bsDay)
+    } else {
+        anchorBsDate
+    }
+
+    val anchorInfo = remember(effectiveBsDate) { TithiCalculator.calculateTithi(effectiveBsDate) }
 
     var title by remember { mutableStateOf(existingEvent?.title ?: "") }
     var notes by remember { mutableStateOf(existingEvent?.notes ?: "") }
@@ -64,7 +71,22 @@ fun EventEditorDialog(
             if (existingEvent != null && existingEvent.shraddhaTithi in 1..30) {
                 existingEvent.shraddhaTithi
             } else {
-                anchorTithi
+                anchorInfo.number
+            }
+        )
+    }
+    var shraddhaPurnimantaMonth by remember {
+        mutableIntStateOf(
+            if (existingEvent != null && existingEvent.isShraddha && existingEvent.shraddhaTithi in 1..30) {
+                TithiCalculator.amantaToPurnimantaMonth(
+                    BsDateConverter.getShraddhaLunarMonth(existingEvent),
+                    existingEvent.shraddhaTithi
+                )
+            } else {
+                TithiCalculator.amantaToPurnimantaMonth(
+                    anchorInfo.shuddhaLunarMonth,
+                    anchorInfo.number
+                )
             }
         )
     }
@@ -85,12 +107,6 @@ fun EventEditorDialog(
     }
     var reminderMinute by remember {
         mutableIntStateOf(existingEvent?.reminderMinute ?: defaultReminderMinute)
-    }
-
-    val effectiveBsDate = if (existingEvent != null) {
-        BsDate(existingEvent.originBsYear, existingEvent.bsMonth, existingEvent.bsDay)
-    } else {
-        anchorBsDate
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -146,10 +162,7 @@ fun EventEditorDialog(
                         fontSize = 13.sp
                     )
                 } else {
-                    val lunarMonthNum = remember(effectiveBsDate) {
-                        TithiCalculator.calculateTithi(effectiveBsDate).shuddhaLunarMonth
-                    }
-                    val mName = BsCalendarData.monthName(lunarMonthNum, ne)
+                    val mName = BsCalendarData.monthName(shraddhaPurnimantaMonth, ne)
                     val tInfo = TithiCalculator.buildTithiInfo(shraddhaTithi)
                     val tDisplay = if (ne) {
                         "${tInfo.nepaliName} (${tInfo.paksha.nepaliName})"
@@ -163,6 +176,32 @@ fun EventEditorDialog(
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BracketButton(
+                            label = "-Month",
+                            onClick = {
+                                shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth <= 1) 12 else shraddhaPurnimantaMonth - 1
+                            }
+                        )
+                        Text(
+                            text = mName,
+                            color = palette.cyan,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        BracketButton(
+                            label = "+Month",
+                            onClick = {
+                                shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth >= 12) 1 else shraddhaPurnimantaMonth + 1
+                            }
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -387,13 +426,34 @@ fun EventEditorDialog(
                         onClick = {
                             val cleanTitle = title.trim().take(100)
                             if (cleanTitle.isNotEmpty()) {
+                                val savedDate = if (isShraddha) {
+                                    val targetAmanta = TithiCalculator.purnimantaToAmantaMonth(
+                                        shraddhaPurnimantaMonth,
+                                        shraddhaTithi
+                                    )
+                                    if (existingEvent != null &&
+                                        existingEvent.isShraddha &&
+                                        targetAmanta == BsDateConverter.getShraddhaLunarMonth(existingEvent) &&
+                                        shraddhaTithi == existingEvent.shraddhaTithi
+                                    ) {
+                                        effectiveBsDate
+                                    } else {
+                                        BsDateConverter.findAnchorDateForShraddha(
+                                            targetAmantaMonth = targetAmanta,
+                                            targetTithi = shraddhaTithi,
+                                            preferredBsYear = effectiveBsDate.year
+                                        )
+                                    }
+                                } else {
+                                    effectiveBsDate
+                                }
                                 val entity = EventEntity(
                                     id = existingEvent?.id ?: 0L,
                                     title = cleanTitle,
                                     note = notes.trim().take(500),
-                                    bsMonth = effectiveBsDate.month,
-                                    bsDay = effectiveBsDate.day,
-                                    startBsYear = effectiveBsDate.year,
+                                    bsMonth = savedDate.month,
+                                    bsDay = savedDate.day,
+                                    startBsYear = savedDate.year,
                                     isPersonalHoliday = isPersonalHoliday,
                                     colorKey = selectedColor.key,
                                     isShraddha = isShraddha,

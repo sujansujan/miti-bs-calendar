@@ -11,6 +11,7 @@ import np.com.miti.patro.data.local.EventEntity
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.model.MissingDayStrategy
+import np.com.miti.patro.domain.model.ResolvedBsOccurrence
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -81,56 +82,57 @@ object GoogleCalendarSyncHelper {
 
         var insertedCount = 0
         for (targetYear in startYear..endYear) {
-            val resolved = BsDateConverter.resolveEventOccurrence(
+            val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(
                 event = event,
                 targetBsYear = targetYear,
                 strategy = strategy
-            ) ?: continue
-
-            val adDate = BsDateConverter.bsToAd(resolved.targetDate)
-            val startZdt = ZonedDateTime.of(
-                adDate.year,
-                adDate.monthValue,
-                adDate.dayOfMonth,
-                event.reminderHour.coerceIn(0, 23),
-                event.reminderMinute.coerceIn(0, 59),
-                0,
-                0,
-                zoneId
             )
-            val startMillis = startZdt.toInstant().toEpochMilli()
-            val endMillis = startMillis + 60 * 60 * 1000L
+            for (resolved in occurrences) {
+                val adDate = BsDateConverter.bsToAd(resolved.targetDate)
+                val startZdt = ZonedDateTime.of(
+                    adDate.year,
+                    adDate.monthValue,
+                    adDate.dayOfMonth,
+                    event.reminderHour.coerceIn(0, 23),
+                    event.reminderMinute.coerceIn(0, 59),
+                    0,
+                    0,
+                    zoneId
+                )
+                val startMillis = startZdt.toInstant().toEpochMilli()
+                val endMillis = startMillis + 60 * 60 * 1000L
 
-            val bsMonthName = BsCalendarData.getMonthName(resolved.targetDate.month, useDevanagari)
-            val bsYearStr = BsCalendarData.formatNumber(resolved.targetDate.year, useDevanagari)
-            val bsDayStr = BsCalendarData.formatNumber(resolved.targetDate.day, useDevanagari)
-            val tag = "$SYNC_TAG_PREFIX${event.id}]"
-            val descText = if (useDevanagari) {
-                "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr गते\n${event.note}\n$tag".trim()
-            } else {
-                "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}\n$tag".trim()
-            }
+                val bsMonthName = BsCalendarData.getMonthName(resolved.targetDate.month, useDevanagari)
+                val bsYearStr = BsCalendarData.formatNumber(resolved.targetDate.year, useDevanagari)
+                val bsDayStr = BsCalendarData.formatNumber(resolved.targetDate.day, useDevanagari)
+                val tag = "$SYNC_TAG_PREFIX${event.id}]"
+                val descText = if (useDevanagari) {
+                    "बिक्रम सम्बत मिति: $bsYearStr $bsMonthName $bsDayStr गते\n${event.note}\n$tag".trim()
+                } else {
+                    "Bikram Sambat Date: $bsYearStr $bsMonthName $bsDayStr BS\n${event.note}\n$tag".trim()
+                }
 
-            val values = ContentValues().apply {
-                put(CalendarContract.Events.CALENDAR_ID, calId)
-                put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
-                put(CalendarContract.Events.DESCRIPTION, descText)
-                put(CalendarContract.Events.DTSTART, startMillis)
-                put(CalendarContract.Events.DTEND, endMillis)
-                put(CalendarContract.Events.EVENT_TIMEZONE, "Asia/Kathmandu")
-            }
+                val values = ContentValues().apply {
+                    put(CalendarContract.Events.CALENDAR_ID, calId)
+                    put(CalendarContract.Events.TITLE, "${event.title} ($bsMonthName $bsDayStr)")
+                    put(CalendarContract.Events.DESCRIPTION, descText)
+                    put(CalendarContract.Events.DTSTART, startMillis)
+                    put(CalendarContract.Events.DTEND, endMillis)
+                    put(CalendarContract.Events.EVENT_TIMEZONE, "Asia/Kathmandu")
+                }
 
-            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            if (uri != null) {
-                insertedCount++
-                val gcalEventId = uri.lastPathSegment?.toLongOrNull()
-                if (gcalEventId != null && event.reminderEnabled) {
-                    val remValues = ContentValues().apply {
-                        put(CalendarContract.Reminders.EVENT_ID, gcalEventId)
-                        put(CalendarContract.Reminders.MINUTES, event.reminderDaysBefore * 24 * 60)
-                        put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+                if (uri != null) {
+                    insertedCount++
+                    val gcalEventId = uri.lastPathSegment?.toLongOrNull()
+                    if (gcalEventId != null && event.reminderEnabled) {
+                        val remValues = ContentValues().apply {
+                            put(CalendarContract.Reminders.EVENT_ID, gcalEventId)
+                            put(CalendarContract.Reminders.MINUTES, event.reminderDaysBefore * 24 * 60)
+                            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                        }
+                        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, remValues)
                     }
-                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, remValues)
                 }
             }
         }
@@ -157,12 +159,18 @@ object GoogleCalendarSyncHelper {
         useDevanagari: Boolean = false
     ) {
         val currentBs = BsDateConverter.todayBs()
-        val resolvedThisYear = BsDateConverter.resolveEventOccurrence(event, currentBs.year, strategy)
-        val targetOccurrence = if (resolvedThisYear != null && resolvedThisYear.targetDate >= currentBs) {
-            resolvedThisYear
-        } else {
-            BsDateConverter.resolveEventOccurrence(event, (currentBs.year + 1).coerceAtMost(BsCalendarData.MAX_YEAR), strategy)
-        } ?: return
+        val startSearchYear = maxOf(currentBs.year, event.startBsYear)
+        val endSearchYear = (startSearchYear + 2).coerceAtMost(BsCalendarData.MAX_YEAR)
+        var targetOccurrence: ResolvedBsOccurrence? = null
+        for (y in startSearchYear..endSearchYear) {
+            val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(event, y, strategy)
+            val match = occurrences.firstOrNull { it.targetDate >= currentBs }
+            if (match != null) {
+                targetOccurrence = match
+                break
+            }
+        }
+        if (targetOccurrence == null) return
 
         val adDate = BsDateConverter.bsToAd(targetOccurrence.targetDate)
         val zoneId = ZoneId.of("Asia/Kathmandu")
