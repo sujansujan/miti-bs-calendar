@@ -12,7 +12,7 @@ object AppStrings {
     fun adhikMaasTag(ne: Boolean) = if (ne) "[अधिक मास]" else "[ADHIK]"
 
     fun todayBtn(ne: Boolean) = if (ne) "आज" else "TODAY"
-    fun convertBtn(ne: Boolean) = "BS↔AD"
+    fun convertBtn(ne: Boolean) = "BS<>AD"
     fun cfgBtn(ne: Boolean) = if (ne) "सेटिङ" else "CFG"
 
     fun todayTag(ne: Boolean) = if (ne) "आज" else "TODAY"

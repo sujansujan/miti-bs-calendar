@@ -342,11 +342,21 @@ fun DateConverterScreen(
                 fontSize = 15.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
+            val tithiSpan = remember(currentAdDate, tithi.number, ne) {
+                TithiCalculator.calculateTithiTimeSpan(currentAdDate, tithi.number)
+                    .formatDisplay(currentAdDate, ne)
+            }
             Text(
                 text = "${AppStrings.tithiLabel(ne)} ${tithi.stripDisplay(ne)}",
                 color = palette.cyan,
                 fontFamily = MitiMonospaceFont,
                 fontSize = 13.sp
+            )
+            Text(
+                text = "      $tithiSpan",
+                color = palette.comment,
+                fontFamily = MitiMonospaceFont,
+                fontSize = 11.5.sp
             )
             if (festivals.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(2.dp))

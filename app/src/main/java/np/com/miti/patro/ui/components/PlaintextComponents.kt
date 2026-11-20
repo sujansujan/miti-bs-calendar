@@ -310,9 +310,12 @@ fun BracketButton(
         Text(
             text = if (highlighted) "[*$label*]" else "[$label]",
             color = resolvedText,
-            fontFamily = MitiMonospaceFont,
-            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
-            fontSize = fontSize,
+            style = TextStyle(
+                fontFamily = MitiMonospaceFont,
+                fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                fontSize = fontSize,
+                fontFeatureSettings = "\"calt\" 0, \"liga\" 0"
+            ),
             maxLines = 1
         )
     }
@@ -532,7 +535,7 @@ fun PlaintextBox(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.width(19.dp))
+                Spacer(modifier = Modifier.width(23.dp))
                 Text(
                     text = header,
                     color = headerColor,

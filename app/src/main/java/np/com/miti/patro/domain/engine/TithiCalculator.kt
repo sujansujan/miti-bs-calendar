@@ -10,6 +10,7 @@ import kotlin.math.acos
 import kotlin.math.asin
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.tan
 
@@ -35,7 +36,34 @@ object TithiCalculator {
         val endAunsiEpochDay: Long
     )
 
+    data class TithiTimeSpan(
+        val startAdDate: LocalDate,
+        val startHour: Int,
+        val startMinute: Int,
+        val endAdDate: LocalDate,
+        val endHour: Int,
+        val endMinute: Int
+    ) {
+        fun formatDisplay(anchorAdDate: LocalDate, useDevanagari: Boolean): String {
+            fun formatPoint(pointDate: LocalDate, hour: Int, minute: Int): String {
+                val timeStr = BsCalendarData.formatTime24h(hour, minute, useDevanagari)
+                return if (pointDate == anchorAdDate) {
+                    timeStr
+                } else {
+                    val pointBs = BsDateConverter.adToBs(pointDate)
+                    val mShort = BsCalendarData.getShortMonthName(pointBs.month, useDevanagari)
+                    val dStr = BsCalendarData.formatNumber(pointBs.day, useDevanagari)
+                    "$mShort $dStr $timeStr"
+                }
+            }
+            val startStr = formatPoint(startAdDate, startHour, startMinute)
+            val endStr = formatPoint(endAdDate, endHour, endMinute)
+            return "$startStr -> $endStr"
+        }
+    }
+
     private val TITHI_CACHE = ConcurrentHashMap<Long, TithiInfo>(512)
+    private val TITHI_SPAN_CACHE = ConcurrentHashMap<Long, TithiTimeSpan>(256)
     private val RAW_SUNRISE_CACHE = ConcurrentHashMap<Long, Int>(1024)
     private val LUNATION_DETAILS_CACHE = ConcurrentHashMap<Long, LunationDetails>(1024)
     private val SUNRISE_SUNSET_CACHE = ConcurrentHashMap<Long, Pair<Double, Double>>(1024)
@@ -292,9 +320,11 @@ object TithiCalculator {
         return result
     }
 
+    private const val PATRO_TRIGATI_HOURS = 1.2 // 3 Ghatis (72 min) post-sunrise threshold per Dharmasindhu / Nepali Patro
+
     private fun exactNewMoonRashi(aunsiAd: LocalDate): Int {
-        var lo = kathmanduSunriseSunsetNst(aunsiAd).first
-        var hi = 24.0 + kathmanduSunriseSunsetNst(aunsiAd.plusDays(1)).first
+        var lo = kathmanduSunriseSunsetNst(aunsiAd).first + PATRO_TRIGATI_HOURS
+        var hi = 24.0 + kathmanduSunriseSunsetNst(aunsiAd.plusDays(1)).first + PATRO_TRIGATI_HOURS
         for (i in 0 until 22) {
             val mid = 0.5 * (lo + hi)
             val (sunLong, moonLong, _) = sunMoonSiderealAtNst(aunsiAd, mid)
@@ -309,11 +339,16 @@ object TithiCalculator {
         return (floor(sunSidereal / 30.0).toInt() % 12) + 1
     }
 
+    /**
+     * Effective Patro Tithi for the solar day in Kathmandu, applying the traditional
+     * 3-Ghati (72 min) Tri-Ghati sunrise prevalence rule so brief dawn Tithis expiring
+     * within ~1 hour of sunrise do not shift the day's Tithi or create false Vriddhis.
+     */
     fun rawTithiAtSunrise(adDate: LocalDate): Int {
         val epochDay = adDate.toEpochDay()
         RAW_SUNRISE_CACHE[epochDay]?.let { return it }
         val (sunriseNst, _) = kathmanduSunriseSunsetNst(adDate)
-        val t = rawTithiAtNstHour(adDate, sunriseNst)
+        val t = rawTithiAtNstHour(adDate, sunriseNst + PATRO_TRIGATI_HOURS)
         RAW_SUNRISE_CACHE[epochDay] = t
         return t
     }
@@ -322,6 +357,85 @@ object TithiCalculator {
         val (sunTrueLong, moonTrueLong, _) = sunMoonSiderealAtNst(adDate, nstHour)
         val elongation = normalizeDegrees(moonTrueLong - sunTrueLong)
         return (floor(elongation / 12.0).toInt() + 1).coerceIn(1, 30)
+    }
+
+    /**
+     * Computes exact NST start and end instants (Kathmandu, UTC+05:45) for the given Tithi
+     * active on [adDate] via binary search to sub-minute precision.
+     */
+    fun calculateTithiTimeSpan(adDate: LocalDate, tithiNumber: Int = rawTithiAtSunrise(adDate)): TithiTimeSpan {
+        val cacheKey = adDate.toEpochDay() * 32L + tithiNumber.coerceIn(1, 30)
+        TITHI_SPAN_CACHE[cacheKey]?.let { return it }
+
+        val target = tithiNumber.coerceIn(1, 30)
+        val (sunriseNst, _) = kathmanduSunriseSunsetNst(adDate)
+        var anchorH = sunriseNst + PATRO_TRIGATI_HOURS
+        if (rawTithiAtNstHour(adDate, anchorH) != target) {
+            var found = false
+            for (step in 0..24) {
+                val fwd = anchorH + step * 1.0
+                if (rawTithiAtNstHour(adDate, fwd) == target) {
+                    anchorH = fwd
+                    found = true
+                    break
+                }
+                val bwd = anchorH - step * 1.0
+                if (rawTithiAtNstHour(adDate, bwd) == target) {
+                    anchorH = bwd
+                    found = true
+                    break
+                }
+            }
+            if (!found) {
+                return TithiTimeSpan(adDate, 0, 0, adDate, 23, 59)
+            }
+        }
+
+        // Walk backward in 1-hour steps until leaving target Tithi, then bisect
+        var backH = anchorH
+        var guard = 0
+        while (rawTithiAtNstHour(adDate, backH) == target && guard < 40) {
+            backH -= 1.0
+            guard++
+        }
+        var loStart = backH
+        var hiStart = backH + 1.0
+        for (i in 0 until 16) {
+            val mid = 0.5 * (loStart + hiStart)
+            if (rawTithiAtNstHour(adDate, mid) == target) hiStart = mid else loStart = mid
+        }
+        val startNstHours = 0.5 * (loStart + hiStart)
+
+        // Walk forward in 1-hour steps until leaving target Tithi, then bisect
+        var fwdH = anchorH
+        guard = 0
+        while (rawTithiAtNstHour(adDate, fwdH) == target && guard < 40) {
+            fwdH += 1.0
+            guard++
+        }
+        var loEnd = fwdH - 1.0
+        var hiEnd = fwdH
+        for (i in 0 until 16) {
+            val mid = 0.5 * (loEnd + hiEnd)
+            if (rawTithiAtNstHour(adDate, mid) == target) loEnd = mid else hiEnd = mid
+        }
+        val endNstHours = 0.5 * (loEnd + hiEnd)
+
+        fun toDateTime(hoursFromMidnight: Double): Triple<LocalDate, Int, Int> {
+            val totalMin = (hoursFromMidnight * 60.0).roundToInt()
+            val dayOffset = Math.floorDiv(totalMin, 1440)
+            val minOfDay = Math.floorMod(totalMin, 1440)
+            return Triple(adDate.plusDays(dayOffset.toLong()), minOfDay / 60, minOfDay % 60)
+        }
+
+        val (sDate, sH, sM) = toDateTime(startNstHours)
+        val (eDate, eH, eM) = toDateTime(endNstHours)
+        val span = TithiTimeSpan(sDate, sH, sM, eDate, eH, eM)
+        if (TITHI_SPAN_CACHE.size >= 256) {
+            TITHI_SPAN_CACHE.clear()
+        }
+        TITHI_SPAN_CACHE[cacheKey] = span
+        return span
     }
 
     private fun deltaTDays(yearDec: Double): Double {
@@ -371,7 +485,9 @@ object TithiCalculator {
             (0.019993 - 0.000101 * t) * sin(2 * mSunRad) +
             0.000289 * sin(3 * mSunRad)
 
+        val omegaRad = Math.toRadians(125.04 - 1934.136 * t)
         val sunTrueLong = normalizeDegrees(l0 + cSun)
+        val sunAppLong = normalizeDegrees(sunTrueLong - 0.00569 - 0.00478 * sin(omegaRad))
 
         val lPrime = normalizeDegrees(218.3164477 + 481267.88123421 * t - 0.0015786 * t * t)
         val d = normalizeDegrees(297.8501921 + 445267.1114034 * t - 0.0018819 * t * t)
@@ -383,27 +499,36 @@ object TithiCalculator {
         val mRad = Math.toRadians(m)
         val mPrimeRad = Math.toRadians(mPrime)
         val fRad = Math.toRadians(f)
+        val eFactor = 1.0 - 0.002516 * t - 0.0000074 * t * t
 
         val moonLongCorrection =
             6.288774 * sin(mPrimeRad) +
             1.274027 * sin(2 * dRad - mPrimeRad) +
             0.658314 * sin(2 * dRad) +
             0.213618 * sin(2 * mPrimeRad) -
-            0.185116 * sin(mRad) -
+            0.185116 * eFactor * sin(mRad) -
             0.114332 * sin(2 * fRad) +
             0.058793 * sin(2 * dRad - 2 * mPrimeRad) +
-            0.057066 * sin(2 * dRad - mRad - mPrimeRad) +
+            0.057066 * eFactor * sin(2 * dRad - mRad - mPrimeRad) +
             0.053322 * sin(2 * dRad + mPrimeRad) +
-            0.045758 * sin(2 * dRad - mRad) -
-            0.040923 * sin(mRad - mPrimeRad) -
+            0.045758 * eFactor * sin(2 * dRad - mRad) -
+            0.040923 * eFactor * sin(mRad - mPrimeRad) -
             0.034720 * sin(dRad) -
-            0.030383 * sin(mRad + mPrimeRad) +
-            0.015327 * sin(2 * dRad - 2 * fRad)
+            0.030383 * eFactor * sin(mRad + mPrimeRad) +
+            0.015327 * sin(2 * dRad - 2 * fRad) -
+            0.012528 * sin(mPrimeRad + 2 * fRad) +
+            0.010980 * sin(mPrimeRad - 2 * fRad) +
+            0.010675 * sin(4 * dRad - mPrimeRad) +
+            0.010034 * sin(3 * mPrimeRad) +
+            0.008548 * sin(4 * dRad - 2 * mPrimeRad) -
+            0.007888 * eFactor * sin(2 * dRad + mRad - mPrimeRad)
 
-        val moonTrueLong = normalizeDegrees(lPrime + moonLongCorrection)
+        val nutationDeg = (-17.20 / 3600.0) * sin(omegaRad) -
+            (1.32 / 3600.0) * sin(2.0 * Math.toRadians(l0))
+        val moonAppLong = normalizeDegrees(lPrime + moonLongCorrection + nutationDeg)
         val ayanamsa = 23.853055 + (50.290966 / 3600.0) * (daysTt / 365.25)
         val sunSidereal = normalizeDegrees(sunTrueLong - ayanamsa)
-        return Triple(sunTrueLong, moonTrueLong, sunSidereal)
+        return Triple(sunAppLong, moonAppLong, sunSidereal)
     }
 
     fun buildTithiInfo(

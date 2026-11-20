@@ -602,7 +602,9 @@ private fun EmptyDayCell(
             ) {
                 Text(
                     text = BsCalendarData.formatNumber(neighborBs.day, useDevanagari),
-                    color = (if (isSaturday) palette.red else palette.comment).copy(alpha = 0.34f),
+                    color = (if (isSaturday) palette.red else palette.foreground).copy(
+                        alpha = if (palette.isDark) 0.36f else 0.34f
+                    ),
                     fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Medium,
                     fontSize = 15.sp,
@@ -612,7 +614,7 @@ private fun EmptyDayCell(
                 if (showAd && neighborAd != null) {
                     Text(
                         text = BsCalendarData.formatNumber(neighborAd.dayOfMonth, useDevanagariAd),
-                        color = palette.comment.copy(alpha = 0.25f),
+                        color = palette.foreground.copy(alpha = if (palette.isDark) 0.28f else 0.26f),
                         fontFamily = MitiMonospaceFont,
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
@@ -715,9 +717,14 @@ private fun BsDayCell(
                     maxLines = 1
                 )
                 if (showAd) {
+                    val adTextColor = if (isSelected) {
+                        palette.foreground.copy(alpha = if (palette.isDark) 0.80f else 0.75f)
+                    } else {
+                        palette.comment
+                    }
                     Text(
                         text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagariAd),
-                        color = palette.comment,
+                        color = adTextColor,
                         fontFamily = MitiMonospaceFont,
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
@@ -777,6 +784,7 @@ private fun BsDayCell(
                     day.tithi.isPurnima -> palette.yellow
                     day.tithi.isAunsi -> palette.purple
                     day.tithi.isEkadashi -> palette.green
+                    isSelected -> palette.foreground.copy(alpha = if (palette.isDark) 0.82f else 0.78f)
                     else -> palette.comment
                 }
                 Text(
@@ -844,6 +852,10 @@ private fun MinimalTodayStrip(
         val stripMotif = remember(day.festivals, events, showFestivals) {
             FestivalArtResolver.resolveMotif(day.festivals, events, showFestivals)
         }
+        val tithiSpanDisplay = remember(day.adDate, day.tithi.number, ne) {
+            TithiCalculator.calculateTithiTimeSpan(day.adDate, day.tithi.number)
+                .formatDisplay(day.adDate, ne)
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -864,6 +876,13 @@ private fun MinimalTodayStrip(
                         lineHeight = if (ne) 19.sp else 16.sp
                     )
                 }
+                Text(
+                    text = tithiSpanDisplay,
+                    color = palette.cyan,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = if (ne) 16.sp else 14.sp
+                )
                 Text(
                     text = "$adDisplay$monthBoundaryMarker",
                     color = palette.comment,

@@ -80,6 +80,8 @@ object PersistentTodayNotificationManager {
         }
 
         val tithiLine = todayTithi.stripDisplay(ne)
+        val tithiSpan = TithiCalculator.calculateTithiTimeSpan(todayAd, todayTithi.number)
+            .formatDisplay(todayAd, ne)
         val adStr = if (adNe) BsCalendarData.formatAdDate(todayAd, true) else BsCalendarData.formatAdDate(todayAd, false)
 
         val todayEventText = todayEvents.joinToString(", ") { "● ${it.event.title}" }
@@ -96,6 +98,7 @@ object PersistentTodayNotificationManager {
 
         val expanded = buildString {
             append("$tithiLine  •  $adStr")
+            append("\n").append(tithiSpan)
             if (todayEventText.isNotEmpty()) {
                 append("\n").append(todayEventText)
             }

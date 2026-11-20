@@ -105,7 +105,7 @@ object NepaliFestivals {
         "2083-07-25" to listOf(FestivalInfo("Bhai Tika / Kija Puja", "भाइटीका / किजा पूजा", isPublicHoliday = true, isLunar = true)),
         "2083-07-26" to listOf(FestivalInfo("Tihar Holiday", "तिहार बिदा", isPublicHoliday = true, isLunar = true)),
         "2083-07-29" to listOf(FestivalInfo("Chhath Parva", "छठ पर्व", isPublicHoliday = true, isLunar = true)),
-        "2083-08-05" to listOf(FestivalInfo("Haribodhini Ekadashi (Tulasi Bibaha)", "हरिबोधिनी एकादशी", isPublicHoliday = false, isLunar = true)),
+        "2083-08-04" to listOf(FestivalInfo("Haribodhini Ekadashi (Tulasi Bibaha)", "हरिबोधिनी एकादशी", isPublicHoliday = false, isLunar = true)),
         "2083-08-08" to listOf(FestivalInfo("Sakimana Punhi / Kartik Snan Ends", "सकिमना पुन्हि", isPublicHoliday = false, isLunar = true)),
         "2083-08-28" to listOf(FestivalInfo("Vivaha Panchami", "विवाह पञ्चमी", isPublicHoliday = false, isLunar = true)),
         "2083-09-09" to listOf(FestivalInfo("Yomari Punhi / Udhauli Parva / Dhanya Purnima", "य:मरि पुन्हि / उधौली पर्व / धान्य पूर्णिमा", isPublicHoliday = true, isLunar = true)),

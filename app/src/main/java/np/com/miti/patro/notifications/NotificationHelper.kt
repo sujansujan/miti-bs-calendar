@@ -24,7 +24,8 @@ import np.com.miti.patro.R
 object NotificationHelper {
 
     const val CHANNEL_ID = "miti_bs_event_reminders"
-    const val PERSISTENT_CHANNEL_ID = "miti_persistent_today_date"
+    const val PERSISTENT_CHANNEL_ID = "miti_persistent_today_v2"
+    private const val LEGACY_PERSISTENT_CHANNEL_ID = "miti_persistent_today_date"
     const val PERSISTENT_NOTIFICATION_ID = 2_000_000_001
 
     fun createNotificationChannel(context: Context) {
@@ -41,10 +42,12 @@ object NotificationHelper {
         }
         notificationManager.createNotificationChannel(reminderChannel)
 
+        notificationManager.deleteNotificationChannel(LEGACY_PERSISTENT_CHANNEL_ID)
+
         val persistentChannel = NotificationChannel(
             PERSISTENT_CHANNEL_ID,
             context.getString(R.string.persistent_channel_name),
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = context.getString(R.string.persistent_channel_desc)
             enableVibration(false)
@@ -113,7 +116,7 @@ object NotificationHelper {
             .setContentTitle(title)
             .setContentText(summary)
             .setStyle(NotificationCompat.BigTextStyle().bigText(expandedText))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
