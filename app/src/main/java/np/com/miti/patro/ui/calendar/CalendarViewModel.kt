@@ -27,6 +27,7 @@ import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.notifications.AlarmScheduler
+import np.com.miti.patro.notifications.PersistentTodayNotificationManager
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.widget.MitiPatroWidgetProvider
 import java.time.LocalDate
@@ -313,6 +314,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 _statusBanner.value = "Saved & synced $synced yearly BS occurrences to Google Calendar."
             }
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
         }
     }
 
@@ -322,6 +324,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             GoogleCalendarSyncHelper.deleteSyncedOccurrences(app, event.id)
             eventRepo.deleteEvent(event)
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
         }
     }
 
@@ -403,6 +406,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 AlarmScheduler.scheduleNextOccurrence(app, ev, payload.settings.missingDayStrategy)
             }
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
             _statusBanner.value = "Restored settings and ${payload.events.size} events from JSON."
         }
     }
@@ -422,13 +426,15 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 AlarmScheduler.scheduleNextOccurrence(app, ev, strategy)
             }
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
         }
     }
 
     fun setNepaliScriptMode(mode: NepaliScriptMode) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setNepaliScriptMode(mode)
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
         }
     }
 
@@ -436,14 +442,30 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefsRepo.setShowGregorianSubDate(enabled) }
     }
 
+    fun setAdDatesInEnglish(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setAdDatesInEnglish(enabled)
+            MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
+        }
+    }
+
     fun setShowTithiInGrid(enabled: Boolean) {
         viewModelScope.launch { prefsRepo.setShowTithiInGrid(enabled) }
     }
 
     fun setShowPublicFestivals(enabled: Boolean) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setShowPublicFestivals(enabled)
             MitiPatroWidgetProvider.requestUpdate(app)
+            PersistentTodayNotificationManager.sync(app)
+        }
+    }
+
+    fun setPersistentTodayNotification(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            prefsRepo.setPersistentTodayNotification(enabled)
+            PersistentTodayNotificationManager.sync(app)
         }
     }
 

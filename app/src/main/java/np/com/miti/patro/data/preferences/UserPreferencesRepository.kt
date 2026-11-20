@@ -41,8 +41,10 @@ data class UserSettings(
     val missingDayStrategy: MissingDayStrategy = MissingDayStrategy.CLAMP_TO_LAST_DAY,
     val nepaliScriptMode: NepaliScriptMode = NepaliScriptMode.ENGLISH,
     val showGregorianSubDate: Boolean = true,
+    val adDatesInEnglish: Boolean = false,
     val showTithiInGrid: Boolean = true,
     val showPublicFestivals: Boolean = true,
+    val persistentTodayNotification: Boolean = false,
     val defaultReminderHour: Int = 7,
     val defaultReminderMinute: Int = 0,
     val defaultReminderDaysBefore: Int = 0,
@@ -65,8 +67,10 @@ class UserPreferencesRepository(private val context: Context) {
         val NEPALI_SCRIPT_MODE = stringPreferencesKey("nepali_script_mode")
         val LEGACY_USE_DEVANAGARI = booleanPreferencesKey("use_devanagari_numerals")
         val SHOW_GREGORIAN_SUB = booleanPreferencesKey("show_gregorian_sub_date")
+        val AD_DATES_IN_ENGLISH = booleanPreferencesKey("ad_dates_in_english")
         val SHOW_TITHI_IN_GRID = booleanPreferencesKey("show_tithi_in_grid")
         val SHOW_PUBLIC_FESTIVALS = booleanPreferencesKey("show_public_festivals")
+        val PERSISTENT_TODAY_NOTIFICATION = booleanPreferencesKey("persistent_today_notification")
         val DEFAULT_REMINDER_HOUR = intPreferencesKey("default_reminder_hour")
         val DEFAULT_REMINDER_MINUTE = intPreferencesKey("default_reminder_minute")
         val DEFAULT_REMINDER_DAYS_BEFORE = intPreferencesKey("default_reminder_days_before")
@@ -89,8 +93,10 @@ class UserPreferencesRepository(private val context: Context) {
             missingDayStrategy = MissingDayStrategy.fromKey(prefs[Keys.MISSING_DAY_STRATEGY]),
             nepaliScriptMode = resolvedScriptMode,
             showGregorianSubDate = prefs[Keys.SHOW_GREGORIAN_SUB] ?: true,
+            adDatesInEnglish = prefs[Keys.AD_DATES_IN_ENGLISH] ?: false,
             showTithiInGrid = prefs[Keys.SHOW_TITHI_IN_GRID] ?: true,
             showPublicFestivals = prefs[Keys.SHOW_PUBLIC_FESTIVALS] ?: true,
+            persistentTodayNotification = prefs[Keys.PERSISTENT_TODAY_NOTIFICATION] ?: false,
             defaultReminderHour = prefs[Keys.DEFAULT_REMINDER_HOUR] ?: 7,
             defaultReminderMinute = prefs[Keys.DEFAULT_REMINDER_MINUTE] ?: 0,
             defaultReminderDaysBefore = prefs[Keys.DEFAULT_REMINDER_DAYS_BEFORE] ?: 0,
@@ -115,12 +121,20 @@ class UserPreferencesRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.SHOW_GREGORIAN_SUB] = enabled }
     }
 
+    suspend fun setAdDatesInEnglish(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.AD_DATES_IN_ENGLISH] = enabled }
+    }
+
     suspend fun setShowTithiInGrid(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_TITHI_IN_GRID] = enabled }
     }
 
     suspend fun setShowPublicFestivals(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_PUBLIC_FESTIVALS] = enabled }
+    }
+
+    suspend fun setPersistentTodayNotification(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.PERSISTENT_TODAY_NOTIFICATION] = enabled }
     }
 
     suspend fun setDefaultReminderTime(hour: Int, minute: Int) {
@@ -150,8 +164,10 @@ class UserPreferencesRepository(private val context: Context) {
             it[Keys.MISSING_DAY_STRATEGY] = settings.missingDayStrategy.key
             it[Keys.NEPALI_SCRIPT_MODE] = settings.nepaliScriptMode.key
             it[Keys.SHOW_GREGORIAN_SUB] = settings.showGregorianSubDate
+            it[Keys.AD_DATES_IN_ENGLISH] = settings.adDatesInEnglish
             it[Keys.SHOW_TITHI_IN_GRID] = settings.showTithiInGrid
             it[Keys.SHOW_PUBLIC_FESTIVALS] = settings.showPublicFestivals
+            it[Keys.PERSISTENT_TODAY_NOTIFICATION] = settings.persistentTodayNotification
             it[Keys.DEFAULT_REMINDER_HOUR] = settings.defaultReminderHour.coerceIn(0, 23)
             it[Keys.DEFAULT_REMINDER_MINUTE] = settings.defaultReminderMinute.coerceIn(0, 59)
             it[Keys.DEFAULT_REMINDER_DAYS_BEFORE] = settings.defaultReminderDaysBefore.coerceIn(0, 30)

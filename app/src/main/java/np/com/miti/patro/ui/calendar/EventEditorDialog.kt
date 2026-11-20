@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +43,7 @@ import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 
 @Composable
 fun EventEditorDialog(
@@ -116,20 +116,13 @@ fun EventEditorDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(palette.background)
-                .border(1.dp, palette.cyan)
-                .padding(6.dp)
+        PlaintextBox(
+            header = if (existingEvent == null) {
+                AppStrings.newEventHeader(ne)
+            } else {
+                AppStrings.editEventHeader(ne)
+            }
         ) {
-            PlaintextBox(
-                header = if (existingEvent == null) {
-                    AppStrings.newEventHeader(ne)
-                } else {
-                    AppStrings.editEventHeader(ne)
-                }
-            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -144,7 +137,7 @@ fun EventEditorDialog(
                         Text(
                             text = AppStrings.eventModeLabel(ne),
                             color = palette.comment,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontSize = 11.sp
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -169,7 +162,7 @@ fun EventEditorDialog(
                         Text(
                             text = "${AppStrings.bsDateFieldLabel(ne)} ${effectiveBsDate.formatHuman(ne)}",
                             color = palette.orange,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -184,7 +177,7 @@ fun EventEditorDialog(
                         Text(
                             text = "${AppStrings.shraddhaTithiFieldLabel(ne)} $mName • $tDisplay",
                             color = palette.orange,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
@@ -203,7 +196,7 @@ fun EventEditorDialog(
                             Text(
                                 text = mName,
                                 color = palette.cyan,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -229,7 +222,7 @@ fun EventEditorDialog(
                             Text(
                                 text = "${tInfo.phaseSymbol} #${BsCalendarData.formatNumber(shraddhaTithi, ne)}",
                                 color = palette.cyan,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -247,7 +240,7 @@ fun EventEditorDialog(
                     Text(
                         text = AppStrings.titleFieldLabel(ne),
                         color = palette.foreground,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
@@ -263,7 +256,7 @@ fun EventEditorDialog(
                     Text(
                         text = AppStrings.notesFieldLabel(ne),
                         color = palette.foreground,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
@@ -280,7 +273,7 @@ fun EventEditorDialog(
                     Text(
                         text = AppStrings.colorLabel(ne),
                         color = palette.foreground,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
@@ -314,7 +307,7 @@ fun EventEditorDialog(
                                     Text(
                                         text = "*",
                                         color = palette.background,
-                                        fontFamily = FontFamily.Monospace,
+                                        fontFamily = MitiMonospaceFont,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
@@ -378,7 +371,7 @@ fun EventEditorDialog(
                             Text(
                                 text = "${AppStrings.timeLabel(ne)} ${BsCalendarData.formatTime24h(reminderHour, reminderMinute, ne)}",
                                 color = palette.cyan,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp
                             )
@@ -467,4 +460,3 @@ fun EventEditorDialog(
             }
         }
     }
-}

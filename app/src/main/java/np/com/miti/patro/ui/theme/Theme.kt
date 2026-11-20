@@ -12,18 +12,27 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import np.com.miti.patro.R
 import np.com.miti.patro.data.preferences.ThemeMode
 
+val MitiMonospaceFont: FontFamily = FontFamily(
+    Font(R.font.jetbrains_mono_regular, FontWeight.Normal),
+    Font(R.font.jetbrains_mono_medium, FontWeight.Medium),
+    Font(R.font.jetbrains_mono_bold, FontWeight.Bold)
+)
+
 private val MonospaceTypography = Typography(
-    bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 20.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 16.sp),
-    titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, lineHeight = 24.sp),
-    titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, lineHeight = 21.sp),
-    labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)
+    bodyLarge = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 14.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 13.sp, lineHeight = 19.sp),
+    bodySmall = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 11.sp, lineHeight = 16.sp),
+    titleLarge = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 18.sp, lineHeight = 24.sp),
+    titleMedium = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 15.sp, lineHeight = 21.sp),
+    labelMedium = TextStyle(fontFamily = MitiMonospaceFont, fontSize = 12.sp, lineHeight = 17.sp)
 )
 
 @Composable

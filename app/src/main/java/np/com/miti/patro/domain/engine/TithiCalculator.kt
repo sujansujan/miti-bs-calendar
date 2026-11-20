@@ -440,10 +440,8 @@ object TithiCalculator {
         val phaseSymbol = when (clamped) {
             15 -> "○"
             30 -> "●"
-            in 1..7 -> "◐"
-            in 8..14 -> "◕"
-            in 16..22 -> "◑"
-            else -> "◔"
+            in 1..14 -> "◐"
+            else -> "◑"
         }
 
         return TithiInfo(

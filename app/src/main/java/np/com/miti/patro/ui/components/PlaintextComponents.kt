@@ -26,20 +26,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -245,7 +248,7 @@ fun PlaintextToggleRow(
         Text(
             text = label,
             color = labelColor,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = MitiMonospaceFont,
             fontSize = 12.5.sp,
             lineHeight = 18.sp,
             modifier = Modifier
@@ -261,7 +264,7 @@ fun PlaintextToggleRow(
             Text(
                 text = if (checked) "[*ON*]" else "[OFF]",
                 color = if (checked) activeColor else palette.comment,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontWeight = if (checked) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 13.sp,
                 maxLines = 1
@@ -307,7 +310,7 @@ fun BracketButton(
         Text(
             text = if (highlighted) "[*$label*]" else "[$label]",
             color = resolvedText,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = MitiMonospaceFont,
             fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
             fontSize = fontSize,
             maxLines = 1
@@ -343,7 +346,7 @@ fun BracketIconButton(
         Text(
             text = "[",
             color = resolvedColor,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = MitiMonospaceFont,
             fontWeight = FontWeight.Medium,
             fontSize = bracketSize,
             maxLines = 1
@@ -352,7 +355,7 @@ fun BracketIconButton(
         Text(
             text = "]",
             color = resolvedColor,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = MitiMonospaceFont,
             fontWeight = FontWeight.Medium,
             fontSize = bracketSize,
             maxLines = 1
@@ -401,6 +404,98 @@ fun AsciiGearIcon(
 }
 
 @Composable
+fun AsciiLunarPhaseIcon(
+    tithiNumber: Int,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalMitiPalette.current
+    val clamped = tithiNumber.coerceIn(1, 30)
+    val ringColor = when (clamped) {
+        15 -> palette.yellow
+        30 -> palette.purple
+        else -> palette.foreground
+    }
+    val fillColor = when (clamped) {
+        15 -> palette.yellow
+        in 1..14 -> palette.yellow
+        else -> palette.comment
+    }
+
+    Canvas(modifier = modifier.size(13.dp)) {
+        val stroke = 1.2.dp.toPx()
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = (size.minDimension - stroke) / 2f
+
+        when (clamped) {
+            15 -> {
+                drawCircle(color = fillColor, radius = r, center = Offset(cx, cy))
+                drawCircle(
+                    color = ringColor,
+                    radius = r,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = stroke)
+                )
+            }
+            30 -> {
+                drawCircle(
+                    color = ringColor,
+                    radius = r,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = stroke)
+                )
+            }
+            in 1..14 -> {
+                val frac = clamped / 15.0
+                val rx = (abs(cos(PI * frac)) * r).toFloat()
+                val outerRect = Rect(cx - r, cy - r, cx + r, cy + r)
+                val litPath = Path().apply {
+                    arcTo(outerRect, -90f, 180f, false)
+                    if (rx < 0.5f) {
+                        lineTo(cx, cy - r)
+                    } else {
+                        val termRect = Rect(cx - rx, cy - r, cx + rx, cy + r)
+                        val sweep = if (frac < 0.5) -180f else 180f
+                        arcTo(termRect, 90f, sweep, false)
+                    }
+                    close()
+                }
+                drawPath(path = litPath, color = fillColor)
+                drawCircle(
+                    color = ringColor,
+                    radius = r,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = stroke)
+                )
+            }
+            else -> {
+                val frac = (30 - clamped) / 15.0
+                val rx = (abs(cos(PI * frac)) * r).toFloat()
+                val outerRect = Rect(cx - r, cy - r, cx + r, cy + r)
+                val litPath = Path().apply {
+                    arcTo(outerRect, 90f, 180f, false)
+                    if (rx < 0.5f) {
+                        lineTo(cx, cy + r)
+                    } else {
+                        val termRect = Rect(cx - rx, cy - r, cx + rx, cy + r)
+                        val sweep = if (frac < 0.5) -180f else 180f
+                        arcTo(termRect, -90f, sweep, false)
+                    }
+                    close()
+                }
+                drawPath(path = litPath, color = fillColor)
+                drawCircle(
+                    color = ringColor,
+                    radius = r,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = stroke)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun PlaintextBox(
     header: String,
     modifier: Modifier = Modifier,
@@ -441,7 +536,7 @@ fun PlaintextBox(
                 Text(
                     text = header,
                     color = headerColor,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -500,7 +595,7 @@ fun PlaintextTextInput(
             Text(
                 text = placeholder,
                 color = palette.comment,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontSize = 13.sp
             )
         }
@@ -510,7 +605,7 @@ fun PlaintextTextInput(
             singleLine = singleLine,
             textStyle = TextStyle(
                 color = palette.foreground,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontSize = 13.sp
             ),
             cursorBrush = SolidColor(palette.cyan),

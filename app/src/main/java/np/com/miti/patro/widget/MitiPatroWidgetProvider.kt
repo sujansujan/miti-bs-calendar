@@ -99,7 +99,8 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
                 val mName = BsCalendarData.getMonthName(todayBs.month, ne)
                 val dayStr = BsCalendarData.formatNumber(todayBs.day, ne)
                 val bsDateLine = "$mName $dayStr • $wd"
-                val adStr = if (ne) BsCalendarData.formatAdDate(todayAd, true) else todayAd.toString()
+                val adNe = ne && !settings.adDatesInEnglish
+                val adStr = if (adNe) BsCalendarData.formatAdDate(todayAd, true) else BsCalendarData.formatAdDate(todayAd, false)
                 val tithiLine = "${todayTithi.stripDisplay(ne)}  |  $adStr"
 
                 val isTodayHoliday = (dow == 6) ||

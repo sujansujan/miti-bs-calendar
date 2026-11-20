@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,6 +31,7 @@ import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 
 @Composable
 fun YearMonthJumpDialog(
@@ -48,14 +48,7 @@ fun YearMonthJumpDialog(
     var selectedMonth by remember { mutableIntStateOf(currentMonth) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(palette.background)
-                .border(1.dp, palette.cyan)
-                .padding(6.dp)
-        ) {
-            PlaintextBox(header = AppStrings.jumpHeader(ne)) {
+        PlaintextBox(header = AppStrings.jumpHeader(ne)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -76,7 +69,7 @@ fun YearMonthJumpDialog(
                     Text(
                         text = BsCalendarData.formatNumber(selectedYear, ne),
                         color = palette.orange,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -112,7 +105,7 @@ fun YearMonthJumpDialog(
                             Text(
                                 text = mName,
                                 color = if (isChosen) palette.cyan else palette.foreground,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
@@ -154,4 +147,3 @@ fun YearMonthJumpDialog(
             }
         }
     }
-}

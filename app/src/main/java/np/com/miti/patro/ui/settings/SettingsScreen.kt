@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +32,7 @@ import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 
 @Composable
 fun SettingsScreen(
@@ -43,8 +43,10 @@ fun SettingsScreen(
     onSelectStrategy: (MissingDayStrategy) -> Unit,
     onSelectNepaliScriptMode: (NepaliScriptMode) -> Unit,
     onToggleGregorianInGrid: (Boolean) -> Unit,
+    onToggleAdDatesInEnglish: (Boolean) -> Unit,
     onToggleTithiInGrid: (Boolean) -> Unit,
     onTogglePublicFestivals: (Boolean) -> Unit,
+    onTogglePersistentNotification: (Boolean) -> Unit,
     onUpdateDefaultReminderTime: (Int, Int) -> Unit,
     onUpdateDefaultReminderDaysBefore: (Int) -> Unit,
     onToggleGoogleCalendarSync: (Boolean) -> Unit,
@@ -77,7 +79,7 @@ fun SettingsScreen(
             Text(
                 text = AppStrings.settingsTopHeader(ne),
                 color = palette.purple,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
@@ -111,7 +113,7 @@ fun SettingsScreen(
                         Text(
                             text = specHint,
                             color = palette.comment,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontSize = 11.sp,
                             maxLines = 1
                         )
@@ -144,7 +146,7 @@ fun SettingsScreen(
                     Text(
                         text = "spec:",
                         color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontSize = 11.sp
                     )
                     accentSwatches.forEach { swatch ->
@@ -158,7 +160,7 @@ fun SettingsScreen(
                 Text(
                     text = if (palette.isDark) "dracula" else "alucard",
                     color = palette.purple,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Medium,
                     fontSize = 11.sp
                 )
@@ -193,6 +195,11 @@ fun SettingsScreen(
                     label = AppStrings.showAdToggle(ne),
                     checked = settings.showGregorianSubDate,
                     onToggle = { onToggleGregorianInGrid(!settings.showGregorianSubDate) }
+                )
+                PlaintextToggleRow(
+                    label = AppStrings.adDatesInEnglishToggle(ne),
+                    checked = settings.adDatesInEnglish,
+                    onToggle = { onToggleAdDatesInEnglish(!settings.adDatesInEnglish) }
                 )
                 PlaintextToggleRow(
                     label = AppStrings.showTithiToggle(ne),
@@ -238,7 +245,7 @@ fun SettingsScreen(
                 Text(
                     text = BsCalendarData.formatTime24h(settings.defaultReminderHour, settings.defaultReminderMinute, ne),
                     color = palette.cyan,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
@@ -265,6 +272,21 @@ fun SettingsScreen(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(2.dp))
+            PlaintextToggleRow(
+                label = AppStrings.persistentNotifToggle(ne),
+                checked = settings.persistentTodayNotification,
+                onToggle = { onTogglePersistentNotification(!settings.persistentTodayNotification) }
+            )
+            Text(
+                text = AppStrings.persistentNotifDesc(ne),
+                color = palette.comment,
+                fontFamily = MitiMonospaceFont,
+                fontSize = 11.sp,
+                lineHeight = 15.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -287,7 +309,7 @@ fun SettingsScreen(
                 Text(
                     text = "${AppStrings.yearsAheadLabel(ne)} ${BsCalendarData.formatNumber(settings.googleSyncYearsAhead, ne)}",
                     color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 12.5.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

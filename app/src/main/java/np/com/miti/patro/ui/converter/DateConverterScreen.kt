@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +38,7 @@ import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -100,7 +100,7 @@ fun DateConverterScreen(
             Text(
                 text = AppStrings.converterTopHeader(ne),
                 color = palette.cyan,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
@@ -152,7 +152,7 @@ fun DateConverterScreen(
                     Text(
                         text = BsCalendarData.formatNumber(currentBsDate.year, ne),
                         color = palette.orange,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -180,7 +180,7 @@ fun DateConverterScreen(
                             Text(
                                 text = mName,
                                 color = if (selected) palette.cyan else palette.foreground,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center,
@@ -214,7 +214,7 @@ fun DateConverterScreen(
                     Text(
                         text = "${AppStrings.bsDayLabel(ne)} ${BsCalendarData.formatNumber(currentBsDate.day, ne)}",
                         color = palette.cyan,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
@@ -241,7 +241,7 @@ fun DateConverterScreen(
                     Text(
                         text = BsCalendarData.formatNumber(currentAdDate.year, ne),
                         color = palette.orange,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
@@ -269,7 +269,7 @@ fun DateConverterScreen(
                             Text(
                                 text = mLabel,
                                 color = if (selected) palette.cyan else palette.foreground,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center,
@@ -303,7 +303,7 @@ fun DateConverterScreen(
                     Text(
                         text = "${AppStrings.adDayLabel(ne)} ${BsCalendarData.formatNumber(currentAdDate.dayOfMonth, ne)}",
                         color = palette.cyan,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
@@ -329,7 +329,7 @@ fun DateConverterScreen(
             Text(
                 text = "${AppStrings.bsDateLabel(ne)} ${currentBsDate.formatHuman(ne)} ($wdName) $relBadge",
                 color = if (isBsInputMode) palette.foreground else palette.green,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
@@ -337,7 +337,7 @@ fun DateConverterScreen(
             Text(
                 text = "${AppStrings.adDateLabel(ne)} $adFormatted ($wdShort)",
                 color = if (isBsInputMode) palette.green else palette.foreground,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
             )
@@ -345,7 +345,7 @@ fun DateConverterScreen(
             Text(
                 text = "${AppStrings.tithiLabel(ne)} ${tithi.stripDisplay(ne)}",
                 color = palette.cyan,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = MitiMonospaceFont,
                 fontSize = 13.sp
             )
             if (festivals.isNotEmpty()) {
@@ -356,7 +356,7 @@ fun DateConverterScreen(
                 Text(
                     text = "* $festNames",
                     color = palette.red,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )

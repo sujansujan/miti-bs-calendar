@@ -3,5 +3,7 @@
     <string name="app_name">Miti</string>
     <string name="notification_channel_name">BS Annual Event Reminders</string>
     <string name="notification_channel_desc">Notifications for repeating Bikram Sambat events and Shraddha Tithis</string>
+    <string name="persistent_channel_name">Today\'s BS Date (Persistent)</string>
+    <string name="persistent_channel_desc">Silent ongoing notification showing today\'s Bikram Sambat date, Tithi, and events</string>
     <string name="widget_description">Today\'s Nepali BS date, Tithi, and upcoming festivals or events</string>
 </resources>

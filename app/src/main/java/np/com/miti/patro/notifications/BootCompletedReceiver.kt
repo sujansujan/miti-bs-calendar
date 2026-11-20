@@ -16,6 +16,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         val validActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
+            Intent.ACTION_DATE_CHANGED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED
         )
@@ -36,6 +37,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     )
                 }
                 MitiPatroWidgetProvider.requestUpdate(context)
+                PersistentTodayNotificationManager.sync(context)
             } finally {
                 pendingResult.finish()
             }

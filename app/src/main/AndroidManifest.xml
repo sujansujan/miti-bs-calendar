@@ -33,11 +33,16 @@
             android:exported="false" />
 
         <receiver
+            android:name=".notifications.PersistentNotificationReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".notifications.BootCompletedReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>

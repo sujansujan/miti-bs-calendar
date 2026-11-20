@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +51,7 @@ import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.AsciiGearIcon
+import np.com.miti.patro.ui.components.AsciiLunarPhaseIcon
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.AsciiVerticalPipe
 import np.com.miti.patro.ui.components.BracketButton
@@ -65,6 +65,7 @@ import np.com.miti.patro.ui.components.PlaintextTextInput
 import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
@@ -141,16 +142,17 @@ fun CalendarScreen(
         }
     }
 
-    val adRangeHeader = remember(state.daysInMonthGrid, calNe) {
+    val adNe = calNe && !state.settings.adDatesInEnglish
+    val adRangeHeader = remember(state.daysInMonthGrid, adNe) {
         val nonNullDays = state.daysInMonthGrid.filterNotNull()
         if (nonNullDays.isEmpty()) ""
         else {
             val firstAd = nonNullDays.first().adDate
             val lastAd = nonNullDays.last().adDate
-            val m1 = if (calNe) BsCalendarData.getAdMonthName(firstAd.monthValue, true) else firstAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
-            val m2 = if (calNe) BsCalendarData.getAdMonthName(lastAd.monthValue, true) else lastAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
-            val y1 = BsCalendarData.formatNumber(firstAd.year, calNe)
-            val y2 = BsCalendarData.formatNumber(lastAd.year, calNe)
+            val m1 = if (adNe) BsCalendarData.getAdMonthName(firstAd.monthValue, true) else firstAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+            val m2 = if (adNe) BsCalendarData.getAdMonthName(lastAd.monthValue, true) else lastAd.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+            val y1 = BsCalendarData.formatNumber(firstAd.year, adNe)
+            val y2 = BsCalendarData.formatNumber(lastAd.year, adNe)
             if (firstAd.year == lastAd.year) {
                 if (m1 == m2) "$m1 $y1" else "$m1-$m2 $y1"
             } else {
@@ -248,7 +250,7 @@ fun CalendarScreen(
                 Text(
                     text = state.statusBannerMessage,
                     color = palette.green,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f)
                 )
@@ -293,7 +295,7 @@ fun CalendarScreen(
                 Text(
                     text = headerLabel,
                     color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     maxLines = 1,
@@ -304,7 +306,7 @@ fun CalendarScreen(
                     Text(
                         text = AppStrings.adhikMaasTag(calNe),
                         color = palette.pink,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
                         maxLines = 1
@@ -315,7 +317,7 @@ fun CalendarScreen(
                 Text(
                     text = adRangeHeader,
                     color = palette.comment,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 11.5.sp,
                     maxLines = 1,
                     modifier = Modifier.padding(start = 6.dp)
@@ -338,7 +340,7 @@ fun CalendarScreen(
                     Text(
                         text = BsCalendarData.weekdayShort(dow, calNe),
                         color = if (isSat) palette.red else palette.comment,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
@@ -379,23 +381,66 @@ fun CalendarScreen(
                     }
                 }
 
+                val leadingNulls = remember(pageGrid) {
+                    pageGrid.indexOfFirst { it != null }.let { if (it < 0) 0 else it }
+                }
+                val currentMonthDays = remember(pYear, pMonth) {
+                    BsCalendarData.getDaysInMonth(pYear, pMonth)
+                }
+                val firstAdOfMonth = remember(pYear, pMonth) {
+                    BsDateConverter.bsToAd(pYear, pMonth, 1)
+                }
+
                 Column(modifier = Modifier.fillMaxWidth()) {
                     val weeks = pageGrid.chunked(7)
-                    weeks.forEach { week ->
+                    weeks.forEachIndexed { weekIdx, week ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(IntrinsicSize.Min)
                         ) {
                             AsciiVerticalPipe()
-                            week.forEach { cell ->
+                            week.forEachIndexed { colIdx, cell ->
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
                                 ) {
                                     if (cell == null) {
-                                        EmptyDayCell()
+                                        val flatIdx = weekIdx * 7 + colIdx
+                                        var neighborBs: BsDate? = null
+                                        var neighborAd: LocalDate? = null
+                                        if (flatIdx < leadingNulls) {
+                                            val prevY = if (pMonth == 1) pYear - 1 else pYear
+                                            val prevM = if (pMonth == 1) 12 else pMonth - 1
+                                            if (prevY >= BsCalendarData.MIN_YEAR) {
+                                                val delta = leadingNulls - flatIdx
+                                                val prevDays = BsCalendarData.getDaysInMonth(prevY, prevM)
+                                                neighborBs = BsDate(prevY, prevM, (prevDays - delta + 1).coerceIn(1, prevDays))
+                                                neighborAd = firstAdOfMonth.minusDays(delta.toLong())
+                                            }
+                                        } else {
+                                            val nextY = if (pMonth == 12) pYear + 1 else pYear
+                                            val nextM = if (pMonth == 12) 1 else pMonth + 1
+                                            if (nextY <= BsCalendarData.MAX_YEAR) {
+                                                val offset = flatIdx - (leadingNulls + currentMonthDays) + 1
+                                                val nextDays = BsCalendarData.getDaysInMonth(nextY, nextM)
+                                                neighborBs = BsDate(nextY, nextM, offset.coerceIn(1, nextDays))
+                                                neighborAd = firstAdOfMonth.plusDays((currentMonthDays - 1 + offset).toLong())
+                                            }
+                                        }
+                                        EmptyDayCell(
+                                            neighborBs = neighborBs,
+                                            neighborAd = neighborAd,
+                                            isSaturday = (colIdx == 6),
+                                            showAd = state.settings.showGregorianInGrid,
+                                            useDevanagari = calNe,
+                                            useDevanagariAd = adNe,
+                                            onClick = { target ->
+                                                haptics(MitiHaptic.TICK)
+                                                onJumpToDate(target)
+                                            }
+                                        )
                                     } else {
                                         val dayEvents = pageEvents[cell.bsDate.day].orEmpty()
                                         val isSelected = cell.bsDate == state.selectedBsDate
@@ -407,6 +452,7 @@ fun CalendarScreen(
                                             showAd = state.settings.showGregorianInGrid,
                                             showFestivals = state.settings.showPublicFestivals,
                                             useDevanagari = calNe,
+                                            useDevanagariAd = adNe,
                                             onClick = {
                                                 haptics(MitiHaptic.TICK)
                                                 onSelectDate(cell.bsDate)
@@ -450,6 +496,7 @@ fun CalendarScreen(
             events = activeDayEvents,
             showFestivals = state.settings.showPublicFestivals,
             useDevanagari = calNe,
+            useDevanagariAd = adNe,
             onAddEvent = {
                 editingEvent = null
                 showEventDialog = true
@@ -518,14 +565,63 @@ fun CalendarScreen(
 }
 
 @Composable
-private fun EmptyDayCell() {
+private fun EmptyDayCell(
+    neighborBs: BsDate?,
+    neighborAd: LocalDate?,
+    isSaturday: Boolean,
+    showAd: Boolean,
+    useDevanagari: Boolean,
+    useDevanagariAd: Boolean,
+    onClick: (BsDate) -> Unit
+) {
     val palette = LocalMitiPalette.current
+    val baseBg = if (isSaturday) {
+        palette.red.copy(alpha = if (palette.isDark) 0.04f else 0.025f)
+    } else {
+        palette.background
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .background(palette.background)
-    )
+            .background(baseBg)
+            .then(
+                if (neighborBs != null) {
+                    Modifier.clickable { onClick(neighborBs) }
+                } else {
+                    Modifier
+                }
+            )
+            .padding(horizontal = 3.dp, vertical = 3.dp)
+    ) {
+        if (neighborBs != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = BsCalendarData.formatNumber(neighborBs.day, useDevanagari),
+                    color = (if (isSaturday) palette.red else palette.comment).copy(alpha = 0.34f),
+                    fontFamily = MitiMonospaceFont,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
+                    lineHeight = if (useDevanagari) 18.sp else 15.sp,
+                    maxLines = 1
+                )
+                if (showAd && neighborAd != null) {
+                    Text(
+                        text = BsCalendarData.formatNumber(neighborAd.dayOfMonth, useDevanagariAd),
+                        color = palette.comment.copy(alpha = 0.25f),
+                        fontFamily = MitiMonospaceFont,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -538,6 +634,7 @@ private fun BsDayCell(
     showAd: Boolean,
     showFestivals: Boolean,
     useDevanagari: Boolean,
+    useDevanagariAd: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -550,6 +647,7 @@ private fun BsDayCell(
     val bgColor = when {
         isSelected -> palette.selection
         day.isToday -> palette.headerBar
+        isHoliday -> palette.red.copy(alpha = if (palette.isDark) 0.08f else 0.055f)
         else -> palette.background
     }
 
@@ -610,7 +708,7 @@ private fun BsDayCell(
                 Text(
                     text = formattedDayText,
                     color = dayNumberColor,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     lineHeight = if (useDevanagari) 19.sp else 16.sp,
@@ -618,9 +716,9 @@ private fun BsDayCell(
                 )
                 if (showAd) {
                     Text(
-                        text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagari),
+                        text = BsCalendarData.formatNumber(day.adDate.dayOfMonth, useDevanagariAd),
                         color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
                         maxLines = 1
@@ -651,7 +749,7 @@ private fun BsDayCell(
                     Text(
                         text = events.first().event.title,
                         color = eventMarkerColor,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 9.5.sp,
                         lineHeight = if (useDevanagari) 13.sp else 11.sp,
@@ -665,7 +763,7 @@ private fun BsDayCell(
                 Text(
                     text = fTitle,
                     color = if (f.isPublicHoliday) palette.red else palette.orange,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Medium,
                     fontSize = 9.5.sp,
                     lineHeight = if (useDevanagari) 13.sp else 11.sp,
@@ -684,7 +782,7 @@ private fun BsDayCell(
                 Text(
                     text = day.tithi.gridLabel(useDevanagari),
                     color = tithiColor,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = if (day.tithi.isPurnima || day.tithi.isAunsi || day.tithi.isEkadashi) {
                         FontWeight.Bold
                     } else {
@@ -708,6 +806,7 @@ private fun MinimalTodayStrip(
     events: List<ResolvedEventInstance>,
     showFestivals: Boolean,
     useDevanagari: Boolean,
+    useDevanagariAd: Boolean,
     onAddEvent: () -> Unit,
     onEditEvent: (EventEntity) -> Unit,
     onDeleteEvent: (EventEntity) -> Unit,
@@ -731,7 +830,7 @@ private fun MinimalTodayStrip(
         totalDaysInMonth -> " • ${AppStrings.masantaTag(ne)}"
         else -> ""
     }
-    val adDisplay = if (ne) BsCalendarData.formatAdDate(day.adDate, true) else day.adDate.toString()
+    val adDisplay = BsCalendarData.formatAdDate(day.adDate, useDevanagariAd)
     val headerText = if (ne) {
         "$badge • ${day.bsDate.formatHuman(true)}, $wdHeader"
     } else {
@@ -751,18 +850,24 @@ private fun MinimalTodayStrip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = day.tithi.stripDisplay(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 13.sp,
-                    lineHeight = if (ne) 19.sp else 16.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    AsciiLunarPhaseIcon(tithiNumber = day.tithi.number)
+                    Text(
+                        text = day.tithi.stripDisplayWithoutSymbol(ne),
+                        color = palette.foreground,
+                        fontFamily = MitiMonospaceFont,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        lineHeight = if (ne) 19.sp else 16.sp
+                    )
+                }
                 Text(
                     text = "$adDisplay$monthBoundaryMarker",
                     color = palette.comment,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 12.sp,
                     lineHeight = if (ne) 17.sp else 15.sp
                 )
@@ -791,7 +896,7 @@ private fun MinimalTodayStrip(
                 Text(
                     text = "* $title",
                     color = if (fest.isPublicHoliday) palette.red else palette.orange,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     lineHeight = if (ne) 19.sp else 16.sp
@@ -829,7 +934,7 @@ private fun MinimalTodayStrip(
                     Text(
                         text = "● ${instance.event.title} $evBadge",
                         color = evColor,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         lineHeight = if (ne) 20.sp else 18.sp
@@ -839,7 +944,7 @@ private fun MinimalTodayStrip(
                         Text(
                             text = "$shraddhaPrefix${instance.event.notes}".trim(),
                             color = palette.comment,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontSize = 12.sp,
                             lineHeight = if (ne) 17.sp else 15.sp
                         )
@@ -1016,7 +1121,7 @@ private fun MonthEventsAndFestivalsBox(
                 Text(
                     text = AppStrings.noSearchMatches(ne),
                     color = palette.comment,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 13.sp
                 )
             } else {
@@ -1038,7 +1143,7 @@ private fun MonthEventsAndFestivalsBox(
                         Text(
                             text = "${item.label} ${item.badge}",
                             color = itemColor,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = MitiMonospaceFont,
                             fontWeight = if (item.isToday || !item.isPast) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 14.sp,
                             modifier = Modifier.weight(1f)
@@ -1057,7 +1162,7 @@ private fun MonthEventsAndFestivalsBox(
                 Text(
                     text = AppStrings.noMonthItems(ne),
                     color = palette.comment,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = MitiMonospaceFont,
                     fontSize = 13.sp
                 )
             } else {
@@ -1103,7 +1208,7 @@ private fun MonthEventsAndFestivalsBox(
                             Text(
                                 text = "$dayNum $wd | ● ${ev.event.title}$shraddhaSuffix $badge",
                                 color = itemColor,
-                                fontFamily = FontFamily.Monospace,
+                                fontFamily = MitiMonospaceFont,
                                 fontWeight = if (isToday || !isPast) FontWeight.Bold else FontWeight.Normal,
                                 fontSize = 14.sp,
                                 modifier = Modifier.weight(1f)
@@ -1129,7 +1234,7 @@ private fun MonthEventsAndFestivalsBox(
                                 Text(
                                     text = "$dayNum $wd | * $title $festDeltaBadge",
                                     color = itemColor,
-                                    fontFamily = FontFamily.Monospace,
+                                    fontFamily = MitiMonospaceFont,
                                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 14.sp,
                                     modifier = Modifier.weight(1f)

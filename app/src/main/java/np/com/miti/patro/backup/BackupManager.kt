@@ -41,8 +41,10 @@ object BackupManager {
             put("missingDayStrategy", settings.missingDayStrategy.key)
             put("nepaliScriptMode", settings.nepaliScriptMode.key)
             put("showGregorianSubDate", settings.showGregorianSubDate)
+            put("adDatesInEnglish", settings.adDatesInEnglish)
             put("showTithiInGrid", settings.showTithiInGrid)
             put("showPublicFestivals", settings.showPublicFestivals)
+            put("persistentTodayNotification", settings.persistentTodayNotification)
             put("defaultReminderHour", settings.defaultReminderHour)
             put("defaultReminderMinute", settings.defaultReminderMinute)
             put("defaultReminderDaysBefore", settings.defaultReminderDaysBefore)
@@ -89,8 +91,10 @@ object BackupManager {
                 settingsObj.optString("nepaliScriptMode", NepaliScriptMode.ENGLISH.key)
             ),
             showGregorianSubDate = settingsObj.optBoolean("showGregorianSubDate", true),
+            adDatesInEnglish = settingsObj.optBoolean("adDatesInEnglish", false),
             showTithiInGrid = settingsObj.optBoolean("showTithiInGrid", true),
             showPublicFestivals = settingsObj.optBoolean("showPublicFestivals", true),
+            persistentTodayNotification = settingsObj.optBoolean("persistentTodayNotification", false),
             defaultReminderHour = settingsObj.optInt("defaultReminderHour", 7).coerceIn(0, 23),
             defaultReminderMinute = settingsObj.optInt("defaultReminderMinute", 0).coerceIn(0, 59),
             defaultReminderDaysBefore = settingsObj.optInt("defaultReminderDaysBefore", 0).coerceIn(0, 30),

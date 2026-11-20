@@ -61,26 +61,28 @@ data class TithiInfo(
     }
 
     fun stripDisplay(useDevanagari: Boolean): String {
+        return "$phaseSymbol ${stripDisplayWithoutSymbol(useDevanagari)}"
+    }
+
+    fun stripDisplayWithoutSymbol(useDevanagari: Boolean): String {
         val kPaksha = kshayaTithiNumber?.let { if (it <= 15) Paksha.SHUKLA else Paksha.KRISHNA }
         return if (useDevanagari) {
-            val base = "$phaseSymbol $nepaliName"
             if (kPaksha != null && kPaksha != paksha && kshayaNepaliName != null) {
                 val p1 = if (isAdhikMaas) "अधिक मास • ${paksha.nepaliName}" else paksha.nepaliName
                 val p2 = if (kshayaTithiIsAdhikMaas) "अधिक मास • ${kPaksha.nepaliName}" else kPaksha.nepaliName
-                "$base ($p1) + $kshayaNepaliName ($p2, तिथि क्षय)"
+                "$nepaliName ($p1) + $kshayaNepaliName ($p2, तिथि क्षय)"
             } else {
-                val withKshaya = if (kshayaNepaliName != null) "$base + $kshayaNepaliName (तिथि क्षय)" else base
+                val withKshaya = if (kshayaNepaliName != null) "$nepaliName + $kshayaNepaliName (तिथि क्षय)" else nepaliName
                 val pakshaStr = if (isAdhikMaas) "अधिक मास • ${paksha.nepaliName}" else paksha.nepaliName
                 "$withKshaya ($pakshaStr)"
             }
         } else {
-            val base = "$phaseSymbol $englishName"
             if (kPaksha != null && kPaksha != paksha && kshayaEnglishName != null) {
                 val p1 = if (isAdhikMaas) "Adhik • ${paksha.shortCode}" else paksha.shortCode
                 val p2 = if (kshayaTithiIsAdhikMaas) "Adhik • ${kPaksha.shortCode}" else kPaksha.shortCode
-                "$base ($p1) + $kshayaEnglishName ($p2, Kshaya)"
+                "$englishName ($p1) + $kshayaEnglishName ($p2, Kshaya)"
             } else {
-                val withKshaya = if (kshayaEnglishName != null) "$base + $kshayaEnglishName (Kshaya)" else base
+                val withKshaya = if (kshayaEnglishName != null) "$englishName + $kshayaEnglishName (Kshaya)" else englishName
                 val pakshaStr = if (isAdhikMaas) "Adhik • ${paksha.shortCode}" else paksha.shortCode
                 "$withKshaya ($pakshaStr)"
             }

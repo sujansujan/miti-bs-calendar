@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import np.com.miti.patro.notifications.NotificationHelper
+import np.com.miti.patro.notifications.PersistentTodayNotificationManager
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.ui.calendar.CalendarScreen
 import np.com.miti.patro.ui.calendar.CalendarViewModel
@@ -59,9 +61,18 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(GoogleCalendarSyncHelper.hasCalendarPermissions(this))
             }
 
+            var pendingEnablePersistentNotif by remember { mutableStateOf(false) }
+
             val notifPermLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestPermission()
-            ) { }
+            ) { granted ->
+                if (granted && pendingEnablePersistentNotif) {
+                    vm.setPersistentTodayNotification(true)
+                } else if (granted) {
+                    PersistentTodayNotificationManager.syncAsync(this@MainActivity)
+                }
+                pendingEnablePersistentNotif = false
+            }
 
             val calendarPermLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -98,7 +109,11 @@ class MainActivity : ComponentActivity() {
                     ) == PackageManager.PERMISSION_GRANTED
                     if (!granted) {
                         notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        PersistentTodayNotificationManager.syncAsync(this@MainActivity)
                     }
+                } else {
+                    PersistentTodayNotificationManager.syncAsync(this@MainActivity)
                 }
             }
 
@@ -177,8 +192,19 @@ class MainActivity : ComponentActivity() {
                                     onSelectStrategy = vm::setMissingDayStrategy,
                                     onSelectNepaliScriptMode = vm::setNepaliScriptMode,
                                     onToggleGregorianInGrid = vm::setShowGregorianSubDate,
+                                    onToggleAdDatesInEnglish = vm::setAdDatesInEnglish,
                                     onToggleTithiInGrid = vm::setShowTithiInGrid,
                                     onTogglePublicFestivals = vm::setShowPublicFestivals,
+                                    onTogglePersistentNotification = { enable ->
+                                        if (enable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                            !NotificationHelper.hasNotificationPermission(this@MainActivity)
+                                        ) {
+                                            pendingEnablePersistentNotif = true
+                                            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        } else {
+                                            vm.setPersistentTodayNotification(enable)
+                                        }
+                                    },
                                     onUpdateDefaultReminderTime = vm::setDefaultReminderTime,
                                     onUpdateDefaultReminderDaysBefore = vm::setDefaultReminderDaysBefore,
                                     onToggleGoogleCalendarSync = { enable ->
