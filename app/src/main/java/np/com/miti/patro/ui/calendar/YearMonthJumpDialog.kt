@@ -27,7 +27,9 @@ import androidx.compose.ui.window.Dialog
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.MitiHaptic
 import np.com.miti.patro.ui.components.PlaintextBox
+import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
@@ -40,6 +42,7 @@ fun YearMonthJumpDialog(
     onConfirm: (Int, Int) -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val ne = useDevanagari
     var selectedYear by remember { mutableIntStateOf(currentYear) }
     var selectedMonth by remember { mutableIntStateOf(currentMonth) }
@@ -117,7 +120,10 @@ fun YearMonthJumpDialog(
                                     .weight(1f)
                                     .background(if (isChosen) palette.selection else palette.surface)
                                     .border(1.dp, if (isChosen) palette.cyan else palette.comment)
-                                    .clickable { selectedMonth = m }
+                                    .clickable {
+                                        haptics(MitiHaptic.TICK)
+                                        selectedMonth = m
+                                    }
                                     .padding(vertical = 6.dp, horizontal = 2.dp)
                             )
                         }
@@ -141,7 +147,8 @@ fun YearMonthJumpDialog(
                         label = AppStrings.goBtn(ne),
                         highlighted = true,
                         onClick = { onConfirm(selectedYear, selectedMonth) },
-                        textColor = palette.green
+                        textColor = palette.green,
+                        haptic = MitiHaptic.CONFIRM
                     )
                 }
             }

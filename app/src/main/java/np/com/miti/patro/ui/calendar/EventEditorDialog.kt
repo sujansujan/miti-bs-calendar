@@ -37,9 +37,11 @@ import np.com.miti.patro.domain.model.EventColor
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.MitiHaptic
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextTextInput
 import np.com.miti.patro.ui.components.PlaintextToggleRow
+import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
@@ -56,6 +58,7 @@ fun EventEditorDialog(
     onSave: (EventEntity) -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val ne = useDevanagari
 
     val effectiveBsDate = if (existingEvent != null) {
@@ -299,6 +302,7 @@ fun EventEditorDialog(
                                         color = if (isSelectedSwatch) palette.foreground else palette.comment
                                     )
                                     .clickable {
+                                        haptics(MitiHaptic.TICK)
                                         selectedColor = swatch
                                         if (swatch == EventColor.RED) {
                                             isPersonalHoliday = true
@@ -413,6 +417,7 @@ fun EventEditorDialog(
                         label = AppStrings.saveBtn(ne),
                         enabled = title.isNotBlank(),
                         highlighted = title.isNotBlank(),
+                        haptic = MitiHaptic.CONFIRM,
                         onClick = {
                             val cleanTitle = title.trim().take(100)
                             if (cleanTitle.isNotEmpty()) {

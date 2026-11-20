@@ -34,7 +34,9 @@ import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.MitiHaptic
 import np.com.miti.patro.ui.components.PlaintextBox
+import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 import java.time.LocalDate
@@ -50,6 +52,7 @@ fun DateConverterScreen(
     onAddEventOnBsDate: (BsDate) -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val ne = useDevanagari
     val scrollState = rememberScrollState()
 
@@ -185,7 +188,10 @@ fun DateConverterScreen(
                                     .weight(1f)
                                     .background(if (selected) palette.selection else palette.surface)
                                     .border(1.dp, if (selected) palette.cyan else palette.comment)
-                                    .clickable { updateFromBs(currentBsDate.year, m, currentBsDate.day) }
+                                    .clickable {
+                                        haptics(MitiHaptic.TICK)
+                                        updateFromBs(currentBsDate.year, m, currentBsDate.day)
+                                    }
                                     .padding(vertical = 6.dp, horizontal = 2.dp)
                             )
                         }
@@ -271,7 +277,10 @@ fun DateConverterScreen(
                                     .weight(1f)
                                     .background(if (selected) palette.selection else palette.surface)
                                     .border(1.dp, if (selected) palette.cyan else palette.comment)
-                                    .clickable { updateFromAd(currentAdDate.year, m, currentAdDate.dayOfMonth) }
+                                    .clickable {
+                                        haptics(MitiHaptic.TICK)
+                                        updateFromAd(currentAdDate.year, m, currentAdDate.dayOfMonth)
+                                    }
                                     .padding(vertical = 6.dp, horizontal = 2.dp)
                             )
                         }

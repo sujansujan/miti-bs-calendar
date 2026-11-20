@@ -51,14 +51,18 @@ import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
+import np.com.miti.patro.ui.components.AsciiGearIcon
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.AsciiVerticalPipe
 import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.BracketIconButton
 import np.com.miti.patro.ui.components.CellArtworkMotif
 import np.com.miti.patro.ui.components.FestivalArtResolver
 import np.com.miti.patro.ui.components.FestivalCellWatermark
+import np.com.miti.patro.ui.components.MitiHaptic
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextTextInput
+import np.com.miti.patro.ui.components.rememberMitiHaptics
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 import java.time.LocalDate
@@ -101,6 +105,7 @@ fun CalendarScreen(
     onOpenSettings: () -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val calNe = state.settings.useDevanagari
     val uiNe = state.settings.useDevanagariEverywhere
     val scrollState = rememberScrollState()
@@ -119,6 +124,7 @@ fun CalendarScreen(
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val ym = pageToYearMonth(page)
             if (ym != currentViewingYm) {
+                haptics(MitiHaptic.TICK)
                 onPagerMonthChanged(ym.first, ym.second)
             }
         }
@@ -160,38 +166,71 @@ fun CalendarScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
+        val todayDateLabel = "${BsCalendarData.getShortMonthName(state.todayBs.month, calNe)} ${BsCalendarData.formatNumber(state.todayBs.day, calNe)}"
+        val isAtToday = state.viewingYear == state.todayBs.year &&
+            state.viewingMonth == state.todayBs.month &&
+            (state.selectedBsDate == null || state.selectedBsDate == state.todayBs)
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = AppStrings.appBrand(calNe),
-                color = palette.purple,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 BracketButton(
-                    label = AppStrings.todayBtn(calNe),
-                    onClick = onJumpToToday,
-                    textColor = palette.cyan
+                    label = "<<",
+                    onClick = onPreviousYear,
+                    textColor = palette.comment,
+                    compact = true
                 )
+                BracketButton(
+                    label = "<",
+                    onClick = onPreviousMonth,
+                    textColor = palette.foreground,
+                    compact = true
+                )
+                BracketButton(
+                    label = todayDateLabel,
+                    onClick = onJumpToToday,
+                    textColor = palette.cyan,
+                    backgroundColor = if (isAtToday) Color.Transparent else palette.selection,
+                    compact = true,
+                    haptic = MitiHaptic.CONFIRM
+                )
+                BracketButton(
+                    label = ">",
+                    onClick = onNextMonth,
+                    textColor = palette.foreground,
+                    compact = true
+                )
+                BracketButton(
+                    label = ">>",
+                    onClick = onNextYear,
+                    textColor = palette.comment,
+                    compact = true
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 BracketButton(
                     label = AppStrings.convertBtn(uiNe),
                     onClick = onOpenConverter,
-                    textColor = palette.cyan
+                    textColor = palette.cyan,
+                    compact = true
                 )
-                BracketButton(
-                    label = AppStrings.cfgBtn(uiNe),
+                BracketIconButton(
                     onClick = onOpenSettings,
-                    textColor = palette.purple
-                )
+                    tint = palette.purple,
+                    compact = true
+                ) { iconColor ->
+                    AsciiGearIcon(color = iconColor)
+                }
             }
         }
 
@@ -222,7 +261,7 @@ fun CalendarScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         AsciiTableHorizontalBorder(columns = 1)
 
         val monthTitle = BsCalendarData.monthName(state.viewingMonth, calNe)
@@ -233,58 +272,55 @@ fun CalendarScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .clickable {
+                    haptics(MitiHaptic.TICK)
+                    showJumpDialog = true
+                }
+                .padding(horizontal = 4.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BracketButton(label = "<", onClick = onPreviousMonth)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { showJumpDialog = true }
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val headerLabel = if (calNe) {
-                        "$monthTitle $yearTitle ▾"
-                    } else {
-                        "${monthTitle.uppercase()} $yearTitle ▾"
-                    }
+                val headerLabel = if (calNe) {
+                    "$monthTitle $yearTitle ▾"
+                } else {
+                    "${monthTitle.uppercase()} $yearTitle ▾"
+                }
+                Text(
+                    text = headerLabel,
+                    color = palette.foreground,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (hasAdhikMaas) {
                     Text(
-                        text = headerLabel,
-                        color = palette.foreground,
+                        text = AppStrings.adhikMaasTag(calNe),
+                        color = palette.pink,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (hasAdhikMaas) {
-                        Text(
-                            text = AppStrings.adhikMaasTag(calNe),
-                            color = palette.pink,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
-                }
-                if (adRangeHeader.isNotEmpty()) {
-                    Text(
-                        text = adRangeHeader,
-                        color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
                         maxLines = 1
                     )
                 }
             }
-            BracketButton(label = ">", onClick = onNextMonth)
+            if (adRangeHeader.isNotEmpty()) {
+                Text(
+                    text = adRangeHeader,
+                    color = palette.comment,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 6.dp)
+                )
+            }
         }
 
         AsciiTableHorizontalBorder(columns = 7)
@@ -371,8 +407,12 @@ fun CalendarScreen(
                                             showAd = state.settings.showGregorianInGrid,
                                             showFestivals = state.settings.showPublicFestivals,
                                             useDevanagari = calNe,
-                                            onClick = { onSelectDate(cell.bsDate) },
+                                            onClick = {
+                                                haptics(MitiHaptic.TICK)
+                                                onSelectDate(cell.bsDate)
+                                            },
                                             onLongClick = {
+                                                haptics(MitiHaptic.LONG_PRESS)
                                                 if (state.selectedBsDate != cell.bsDate) {
                                                     onSelectDate(cell.bsDate)
                                                 }
@@ -823,7 +863,8 @@ private fun MinimalTodayStrip(
                         BracketButton(
                             label = AppStrings.delBtn(ne),
                             onClick = { onDeleteEvent(instance.event) },
-                            textColor = palette.red
+                            textColor = palette.red,
+                            haptic = MitiHaptic.CONFIRM
                         )
                     }
                 }
@@ -858,6 +899,7 @@ private fun MonthEventsAndFestivalsBox(
     onJumpToDate: (BsDate) -> Unit
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val ne = useDevanagari
     val monthName = BsCalendarData.monthName(month, ne)
     val yearStr = BsCalendarData.formatNumber(year, ne)
@@ -984,6 +1026,7 @@ private fun MonthEventsAndFestivalsBox(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                haptics(MitiHaptic.TICK)
                                 onJumpToDate(item.bsDate)
                                 showSearch = false
                                 searchQuery = ""
@@ -1032,12 +1075,18 @@ private fun MonthEventsAndFestivalsBox(
                             .padding(vertical = 2.dp)
                             .background(palette.selection)
                             .border(1.dp, palette.cyan)
-                            .clickable { onSelectDate(d.bsDate) }
+                            .clickable {
+                                haptics(MitiHaptic.TICK)
+                                onSelectDate(d.bsDate)
+                            }
                             .padding(horizontal = 6.dp, vertical = 5.dp)
                     } else {
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onSelectDate(d.bsDate) }
+                            .clickable {
+                                haptics(MitiHaptic.TICK)
+                                onSelectDate(d.bsDate)
+                            }
                             .padding(horizontal = 2.dp, vertical = 4.dp)
                     }
 

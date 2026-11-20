@@ -1,5 +1,6 @@
 package np.com.miti.patro.ui.components
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -27,6 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +39,30 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+enum class MitiHaptic {
+    TICK,
+    CONFIRM,
+    LONG_PRESS
+}
+
+@Composable
+fun rememberMitiHaptics(): (MitiHaptic) -> Unit {
+    val view = LocalView.current
+    return remember(view) {
+        { type ->
+            val constant = when (type) {
+                MitiHaptic.TICK -> HapticFeedbackConstants.CLOCK_TICK
+                MitiHaptic.CONFIRM -> HapticFeedbackConstants.CONTEXT_CLICK
+                MitiHaptic.LONG_PRESS -> HapticFeedbackConstants.LONG_PRESS
+            }
+            view.performHapticFeedback(constant)
+        }
+    }
+}
 
 private val ASCII_EDGE_WIDTH = 7.dp
 
@@ -200,11 +229,15 @@ fun PlaintextToggleRow(
     labelColor: Color = LocalMitiPalette.current.foreground
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     Row(
         modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 40.dp)
-            .clickable(onClick = onToggle)
+            .clickable {
+                haptics(MitiHaptic.TICK)
+                onToggle()
+            }
             .padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -244,22 +277,31 @@ fun BracketButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     highlighted: Boolean = false,
-    textColor: Color? = null
+    textColor: Color? = null,
+    compact: Boolean = false,
+    backgroundColor: Color? = null,
+    haptic: MitiHaptic = MitiHaptic.TICK
 ) {
     val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
     val resolvedText = when {
         !enabled -> palette.comment
         textColor != null -> textColor
         highlighted -> palette.cyan
         else -> palette.foreground
     }
-    val bgColor = if (highlighted) palette.selection else Color.Transparent
+    val bgColor = backgroundColor ?: if (highlighted) palette.selection else Color.Transparent
+    val horizontalPad = if (compact) 2.5.dp else 4.dp
+    val fontSize = if (compact) 12.sp else 13.sp
 
     Box(
         modifier = modifier
             .background(bgColor)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 3.dp),
+            .clickable(enabled = enabled) {
+                haptics(haptic)
+                onClick()
+            }
+            .padding(horizontal = horizontalPad, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -267,9 +309,94 @@ fun BracketButton(
             color = resolvedText,
             fontFamily = FontFamily.Monospace,
             fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
-            fontSize = 13.sp,
+            fontSize = fontSize,
             maxLines = 1
         )
+    }
+}
+
+@Composable
+fun BracketIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tint: Color = LocalMitiPalette.current.purple,
+    compact: Boolean = false,
+    haptic: MitiHaptic = MitiHaptic.TICK,
+    icon: @Composable (Color) -> Unit
+) {
+    val palette = LocalMitiPalette.current
+    val haptics = rememberMitiHaptics()
+    val resolvedColor = if (enabled) tint else palette.comment
+    val horizontalPad = if (compact) 2.5.dp else 4.dp
+    val bracketSize = if (compact) 12.sp else 13.sp
+
+    Row(
+        modifier = modifier
+            .clickable(enabled = enabled) {
+                haptics(haptic)
+                onClick()
+            }
+            .padding(horizontal = horizontalPad, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "[",
+            color = resolvedColor,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium,
+            fontSize = bracketSize,
+            maxLines = 1
+        )
+        icon(resolvedColor)
+        Text(
+            text = "]",
+            color = resolvedColor,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Medium,
+            fontSize = bracketSize,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+fun AsciiGearIcon(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(12.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val stroke = 1.2.dp.toPx()
+        val innerR = size.minDimension * 0.14f
+        val ringR = size.minDimension * 0.32f
+        val outerR = size.minDimension * 0.47f
+
+        drawCircle(
+            color = color,
+            radius = innerR,
+            center = Offset(cx, cy),
+            style = Stroke(width = stroke)
+        )
+        drawCircle(
+            color = color,
+            radius = ringR,
+            center = Offset(cx, cy),
+            style = Stroke(width = stroke)
+        )
+        for (i in 0 until 8) {
+            val angle = i * (PI / 4.0)
+            val cosA = cos(angle).toFloat()
+            val sinA = sin(angle).toFloat()
+            drawLine(
+                color = color,
+                start = Offset(cx + cosA * ringR, cy + sinA * ringR),
+                end = Offset(cx + cosA * outerR, cy + sinA * outerR),
+                strokeWidth = stroke * 1.15f,
+                cap = StrokeCap.Square
+            )
+        }
     }
 }
 
