@@ -10,6 +10,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -108,87 +115,106 @@ class MainActivity : ComponentActivity() {
                         .background(palette.background)
                         .systemBarsPadding()
                 ) {
-                    when (activeScreen) {
-                        ActiveScreen.CALENDAR -> {
-                            CalendarScreen(
-                                state = state,
-                                onPreviousMonth = vm::previousMonth,
-                                onNextMonth = vm::nextMonth,
-                                onPreviousYear = vm::previousYear,
-                                onNextYear = vm::nextYear,
-                                onJumpToMonthYear = vm::jumpToMonthYear,
-                                onJumpToToday = vm::jumpToToday,
-                                onSelectDate = vm::selectDate,
-                                onSaveEvent = vm::saveEvent,
-                                onDeleteEvent = vm::deleteEvent,
-                                onSyncEventToGCal = vm::exportSingleEventToGoogleCalendar,
-                                onDismissStatusBanner = vm::dismissStatusBanner,
-                                onOpenConverter = { activeScreen = ActiveScreen.CONVERTER },
-                                onOpenSettings = { activeScreen = ActiveScreen.SETTINGS }
-                            )
-                        }
+                    AnimatedContent(
+                        targetState = activeScreen,
+                        transitionSpec = {
+                            val forward = targetState.ordinal > initialState.ordinal
+                            val inAnim = fadeIn(tween(180)) + slideInHorizontally(tween(180)) {
+                                if (forward) it / 6 else -it / 6
+                            }
+                            val outAnim = fadeOut(tween(150)) + slideOutHorizontally(tween(150)) {
+                                if (forward) -it / 6 else it / 6
+                            }
+                            inAnim togetherWith outAnim
+                        },
+                        label = "screen_transition"
+                    ) { screen ->
+                        when (screen) {
+                            ActiveScreen.CALENDAR -> {
+                                CalendarScreen(
+                                    state = state,
+                                    onPreviousMonth = vm::previousMonth,
+                                    onNextMonth = vm::nextMonth,
+                                    onPreviousYear = vm::previousYear,
+                                    onNextYear = vm::nextYear,
+                                    onJumpToMonthYear = vm::jumpToMonthYear,
+                                    onJumpToToday = vm::jumpToToday,
+                                    onJumpToDate = vm::jumpToBsDate,
+                                    onPagerMonthChanged = vm::onPagerSettledMonth,
+                                    getMonthGridForPage = vm::getMonthGridForPage,
+                                    getEventsForMonthPage = vm::getEventsForMonthPage,
+                                    onSelectDate = vm::selectDate,
+                                    onSaveEvent = vm::saveEvent,
+                                    onDeleteEvent = vm::deleteEvent,
+                                    onSyncEventToGCal = vm::exportSingleEventToGoogleCalendar,
+                                    onDismissStatusBanner = vm::dismissStatusBanner,
+                                    onOpenConverter = { activeScreen = ActiveScreen.CONVERTER },
+                                    onOpenSettings = { activeScreen = ActiveScreen.SETTINGS }
+                                )
+                            }
 
-                        ActiveScreen.CONVERTER -> {
-                            DateConverterScreen(
-                                initialBsDate = state.effectiveAnchorBsDate,
-                                useDevanagari = state.settings.useDevanagariEverywhere,
-                                onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
-                                onOpenBsDateInCalendar = { targetBs ->
-                                    vm.jumpToBsDate(targetBs)
-                                    activeScreen = ActiveScreen.CALENDAR
-                                },
-                                onAddEventOnBsDate = { targetBs ->
-                                    quickAddBsDate = targetBs
-                                }
-                            )
-                        }
+                            ActiveScreen.CONVERTER -> {
+                                DateConverterScreen(
+                                    initialBsDate = state.effectiveAnchorBsDate,
+                                    useDevanagari = state.settings.useDevanagariEverywhere,
+                                    onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
+                                    onOpenBsDateInCalendar = { targetBs ->
+                                        vm.jumpToBsDate(targetBs)
+                                        activeScreen = ActiveScreen.CALENDAR
+                                    },
+                                    onAddEventOnBsDate = { targetBs ->
+                                        quickAddBsDate = targetBs
+                                    }
+                                )
+                            }
 
-                        ActiveScreen.SETTINGS -> {
-                            SettingsScreen(
-                                settings = state.settings,
-                                hasCalendarPermission = hasCalendarPermission,
-                                onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
-                                onSelectTheme = vm::setThemeMode,
-                                onSelectStrategy = vm::setMissingDayStrategy,
-                                onSelectNepaliScriptMode = vm::setNepaliScriptMode,
-                                onToggleGregorianInGrid = vm::setShowGregorianSubDate,
-                                onToggleTithiInGrid = vm::setShowTithiInGrid,
-                                onTogglePublicFestivals = vm::setShowPublicFestivals,
-                                onUpdateDefaultReminderTime = vm::setDefaultReminderTime,
-                                onUpdateDefaultReminderDaysBefore = vm::setDefaultReminderDaysBefore,
-                                onToggleGoogleCalendarSync = { enable ->
-                                    if (enable && !GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                        calendarPermLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.READ_CALENDAR,
-                                                Manifest.permission.WRITE_CALENDAR
+                            ActiveScreen.SETTINGS -> {
+                                SettingsScreen(
+                                    settings = state.settings,
+                                    hasCalendarPermission = hasCalendarPermission,
+                                    onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
+                                    onSelectTheme = vm::setThemeMode,
+                                    onSelectStrategy = vm::setMissingDayStrategy,
+                                    onSelectNepaliScriptMode = vm::setNepaliScriptMode,
+                                    onToggleGregorianInGrid = vm::setShowGregorianSubDate,
+                                    onToggleTithiInGrid = vm::setShowTithiInGrid,
+                                    onTogglePublicFestivals = vm::setShowPublicFestivals,
+                                    onUpdateDefaultReminderTime = vm::setDefaultReminderTime,
+                                    onUpdateDefaultReminderDaysBefore = vm::setDefaultReminderDaysBefore,
+                                    onToggleGoogleCalendarSync = { enable ->
+                                        if (enable && !GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
+                                            calendarPermLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.READ_CALENDAR,
+                                                    Manifest.permission.WRITE_CALENDAR
+                                                )
                                             )
-                                        )
-                                    } else {
-                                        vm.setSyncToGoogleCalendar(enable)
-                                    }
-                                },
-                                onUpdateGoogleSyncYearsAhead = vm::setGoogleSyncYearsAhead,
-                                onSyncAllEventsToGoogleNow = {
-                                    if (!GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
-                                        calendarPermLauncher.launch(
-                                            arrayOf(
-                                                Manifest.permission.READ_CALENDAR,
-                                                Manifest.permission.WRITE_CALENDAR
+                                        } else {
+                                            vm.setSyncToGoogleCalendar(enable)
+                                        }
+                                    },
+                                    onUpdateGoogleSyncYearsAhead = vm::setGoogleSyncYearsAhead,
+                                    onSyncAllEventsToGoogleNow = {
+                                        if (!GoogleCalendarSyncHelper.hasCalendarPermissions(this@MainActivity)) {
+                                            calendarPermLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.READ_CALENDAR,
+                                                    Manifest.permission.WRITE_CALENDAR
+                                                )
                                             )
-                                        )
-                                    } else {
-                                        vm.syncAllEventsToGoogleCalendarNow()
+                                        } else {
+                                            vm.syncAllEventsToGoogleCalendarNow()
+                                        }
+                                    },
+                                    onExportBackupJson = {
+                                        val todayIso = state.todayBs.formatIso()
+                                        exportJsonLauncher.launch("miti-bs-backup-$todayIso.json")
+                                    },
+                                    onImportBackupJson = {
+                                        importJsonLauncher.launch(arrayOf("application/json", "*/*"))
                                     }
-                                },
-                                onExportBackupJson = {
-                                    val todayIso = state.todayBs.formatIso()
-                                    exportJsonLauncher.launch("miti-bs-backup-$todayIso.json")
-                                },
-                                onImportBackupJson = {
-                                    importJsonLauncher.launch(arrayOf("application/json", "*/*"))
-                                }
-                            )
+                                )
+                            }
                         }
                     }
 

@@ -1,13 +1,16 @@
 package np.com.miti.patro.ui.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -16,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -59,6 +63,87 @@ fun AsciiTableHorizontalBorder(
         overflow = TextOverflow.Clip,
         modifier = modifier.fillMaxWidth()
     )
+}
+
+@Composable
+fun AsciiGridHorizontalDivider(
+    columns: Int = 7,
+    modifier: Modifier = Modifier,
+    color: Color = LocalMitiPalette.current.comment
+) {
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(7.dp)
+    ) {
+        val strokePx = 1.dp.toPx()
+        val midY = size.height / 2f
+        val tickHalf = 3.dp.toPx()
+        val lineColor = color.copy(alpha = 0.65f)
+        drawLine(
+            color = lineColor,
+            start = Offset(0f, midY),
+            end = Offset(size.width, midY),
+            strokeWidth = strokePx
+        )
+        for (col in 0..columns) {
+            val x = (col * size.width / columns).coerceIn(strokePx / 2f, size.width - strokePx / 2f)
+            drawLine(
+                color = lineColor,
+                start = Offset(x, midY - tickHalf),
+                end = Offset(x, midY + tickHalf),
+                strokeWidth = strokePx
+            )
+        }
+    }
+}
+
+@Composable
+fun PlaintextToggleRow(
+    label: String,
+    checked: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    activeColor: Color = LocalMitiPalette.current.green,
+    labelColor: Color = LocalMitiPalette.current.foreground
+) {
+    val palette = LocalMitiPalette.current
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 40.dp)
+            .clickable(onClick = onToggle)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = labelColor,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 8.dp)
+        )
+        Box(
+            modifier = Modifier
+                .background(if (checked) palette.selection else Color.Transparent)
+                .border(1.dp, if (checked) activeColor else palette.comment)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (checked) "ON " else "OFF",
+                color = if (checked) activeColor else palette.comment,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                maxLines = 1
+            )
+        }
+    }
 }
 
 @Composable

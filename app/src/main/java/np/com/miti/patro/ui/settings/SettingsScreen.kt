@@ -26,6 +26,7 @@ import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
+import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
@@ -112,21 +113,21 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         PlaintextBox(header = AppStrings.gridDisplayHeader(ne)) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BracketButton(
-                    label = "${if (settings.showGregorianSubDate) "[X]" else "[ ]"} ${AppStrings.showAdToggle(ne)}",
-                    highlighted = settings.showGregorianSubDate,
-                    onClick = { onToggleGregorianInGrid(!settings.showGregorianSubDate) }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                PlaintextToggleRow(
+                    label = AppStrings.showAdToggle(ne),
+                    checked = settings.showGregorianSubDate,
+                    onToggle = { onToggleGregorianInGrid(!settings.showGregorianSubDate) }
                 )
-                BracketButton(
-                    label = "${if (settings.showTithiInGrid) "[X]" else "[ ]"} ${AppStrings.showTithiToggle(ne)}",
-                    highlighted = settings.showTithiInGrid,
-                    onClick = { onToggleTithiInGrid(!settings.showTithiInGrid) }
+                PlaintextToggleRow(
+                    label = AppStrings.showTithiToggle(ne),
+                    checked = settings.showTithiInGrid,
+                    onToggle = { onToggleTithiInGrid(!settings.showTithiInGrid) }
                 )
-                BracketButton(
-                    label = "${if (settings.showPublicFestivals) "[X]" else "[ ]"} ${AppStrings.showFestivalsToggle(ne)}",
-                    highlighted = settings.showPublicFestivals,
-                    onClick = { onTogglePublicFestivals(!settings.showPublicFestivals) }
+                PlaintextToggleRow(
+                    label = AppStrings.showFestivalsToggle(ne),
+                    checked = settings.showPublicFestivals,
+                    onToggle = { onTogglePublicFestivals(!settings.showPublicFestivals) }
                 )
             }
         }
@@ -188,10 +189,10 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         PlaintextBox(header = AppStrings.gcalSyncHeader(ne)) {
-            BracketButton(
-                label = "${if (settings.syncToGoogleCalendar) "[X]" else "[ ]"} ${AppStrings.autoSyncToggle(ne)}",
-                highlighted = settings.syncToGoogleCalendar,
-                onClick = { onToggleGoogleCalendarSync(!settings.syncToGoogleCalendar) }
+            PlaintextToggleRow(
+                label = AppStrings.autoSyncToggle(ne),
+                checked = settings.syncToGoogleCalendar,
+                onToggle = { onToggleGoogleCalendarSync(!settings.syncToGoogleCalendar) }
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(

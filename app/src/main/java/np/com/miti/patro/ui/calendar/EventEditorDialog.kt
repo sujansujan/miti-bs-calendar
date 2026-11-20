@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +39,7 @@ import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextTextInput
+import np.com.miti.patro.ui.components.PlaintextToggleRow
 import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
 
@@ -124,54 +127,156 @@ fun EventEditorDialog(
                     AppStrings.editEventHeader(ne)
                 }
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    Text(
-                        text = AppStrings.eventModeLabel(ne),
-                        color = palette.comment,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        BracketButton(
-                            label = AppStrings.modeSolarBs(ne),
-                            highlighted = !isShraddha,
-                            onClick = { isShraddha = false },
-                            textColor = if (!isShraddha) palette.cyan else palette.comment
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = AppStrings.eventModeLabel(ne),
+                            color = palette.comment,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
                         )
-                        BracketButton(
-                            label = AppStrings.modeShraddhaTithi(ne),
-                            highlighted = isShraddha,
-                            onClick = { isShraddha = true },
-                            textColor = if (isShraddha) palette.orange else palette.comment
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            BracketButton(
+                                label = AppStrings.modeSolarBs(ne),
+                                highlighted = !isShraddha,
+                                onClick = { isShraddha = false },
+                                textColor = if (!isShraddha) palette.cyan else palette.comment
+                            )
+                            BracketButton(
+                                label = AppStrings.modeShraddhaTithi(ne),
+                                highlighted = isShraddha,
+                                onClick = { isShraddha = true },
+                                textColor = if (isShraddha) palette.orange else palette.comment
+                            )
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                if (!isShraddha) {
+                    if (!isShraddha) {
+                        Text(
+                            text = "${AppStrings.bsDateFieldLabel(ne)} ${effectiveBsDate.formatHuman(ne)}",
+                            color = palette.orange,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        val mName = BsCalendarData.monthName(shraddhaPurnimantaMonth, ne)
+                        val tInfo = TithiCalculator.buildTithiInfo(shraddhaTithi)
+                        val tDisplay = if (ne) {
+                            "${tInfo.nepaliName} (${tInfo.paksha.nepaliName})"
+                        } else {
+                            "${tInfo.englishName} (${tInfo.paksha.shortCode})"
+                        }
+                        Text(
+                            text = "${AppStrings.shraddhaTithiFieldLabel(ne)} $mName • $tDisplay",
+                            color = palette.orange,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BracketButton(
+                                label = "-Month",
+                                onClick = {
+                                    shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth <= 1) 12 else shraddhaPurnimantaMonth - 1
+                                }
+                            )
+                            Text(
+                                text = mName,
+                                color = palette.cyan,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            BracketButton(
+                                label = "+Month",
+                                onClick = {
+                                    shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth >= 12) 1 else shraddhaPurnimantaMonth + 1
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BracketButton(
+                                label = "-Tithi",
+                                onClick = {
+                                    shraddhaTithi = if (shraddhaTithi <= 1) 30 else shraddhaTithi - 1
+                                }
+                            )
+                            Text(
+                                text = "${tInfo.phaseSymbol} #${BsCalendarData.formatNumber(shraddhaTithi, ne)}",
+                                color = palette.cyan,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            BracketButton(
+                                label = "+Tithi",
+                                onClick = {
+                                    shraddhaTithi = if (shraddhaTithi >= 30) 1 else shraddhaTithi + 1
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "${AppStrings.bsDateFieldLabel(ne)} ${effectiveBsDate.formatHuman(ne)}",
-                        color = palette.orange,
+                        text = AppStrings.titleFieldLabel(ne),
+                        color = palette.foreground,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
-                } else {
-                    val mName = BsCalendarData.monthName(shraddhaPurnimantaMonth, ne)
-                    val tInfo = TithiCalculator.buildTithiInfo(shraddhaTithi)
-                    val tDisplay = if (ne) {
-                        "${tInfo.nepaliName} (${tInfo.paksha.nepaliName})"
-                    } else {
-                        "${tInfo.englishName} (${tInfo.paksha.shortCode})"
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PlaintextTextInput(
+                        value = title,
+                        onValueChange = { title = it.take(100) },
+                        placeholder = AppStrings.titlePlaceholder(ne)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
-                        text = "${AppStrings.shraddhaTithiFieldLabel(ne)} $mName • $tDisplay",
-                        color = palette.orange,
+                        text = AppStrings.notesFieldLabel(ne),
+                        color = palette.foreground,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PlaintextTextInput(
+                        value = notes,
+                        onValueChange = { notes = it.take(500) },
+                        placeholder = AppStrings.notesPlaceholder(ne),
+                        singleLine = false
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = AppStrings.colorLabel(ne),
+                        color = palette.foreground,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
@@ -182,231 +287,116 @@ fun EventEditorDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BracketButton(
-                            label = "-Month",
-                            onClick = {
-                                shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth <= 1) 12 else shraddhaPurnimantaMonth - 1
-                            }
-                        )
-                        Text(
-                            text = mName,
-                            color = palette.cyan,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        BracketButton(
-                            label = "+Month",
-                            onClick = {
-                                shraddhaPurnimantaMonth = if (shraddhaPurnimantaMonth >= 12) 1 else shraddhaPurnimantaMonth + 1
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BracketButton(
-                            label = "-Tithi",
-                            onClick = {
-                                shraddhaTithi = if (shraddhaTithi <= 1) 30 else shraddhaTithi - 1
-                            }
-                        )
-                        Text(
-                            text = "${tInfo.phaseSymbol} #${BsCalendarData.formatNumber(shraddhaTithi, ne)}",
-                            color = palette.cyan,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        BracketButton(
-                            label = "+Tithi",
-                            onClick = {
-                                shraddhaTithi = if (shraddhaTithi >= 30) 1 else shraddhaTithi + 1
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = AppStrings.titleFieldLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                PlaintextTextInput(
-                    value = title,
-                    onValueChange = { title = it.take(100) },
-                    placeholder = AppStrings.titlePlaceholder(ne)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = AppStrings.notesFieldLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                PlaintextTextInput(
-                    value = notes,
-                    onValueChange = { notes = it.take(500) },
-                    placeholder = AppStrings.notesPlaceholder(ne),
-                    singleLine = false
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = AppStrings.colorLabel(ne),
-                    color = palette.foreground,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    EventColor.entries.forEach { swatch ->
-                        val c = swatch.composeColor(palette)
-                        val isSelectedSwatch = (swatch == selectedColor)
-                        Box(
-                            modifier = Modifier
-                                .size(26.dp)
-                                .background(c)
-                                .border(
-                                    width = if (isSelectedSwatch) 2.dp else 1.dp,
-                                    color = if (isSelectedSwatch) palette.foreground else palette.comment
-                                )
-                                .clickable {
-                                    selectedColor = swatch
-                                    if (swatch == EventColor.RED) {
-                                        isPersonalHoliday = true
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelectedSwatch) {
-                                Text(
-                                    text = "*",
-                                    color = palette.background,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
+                        EventColor.entries.forEach { swatch ->
+                            val c = swatch.composeColor(palette)
+                            val isSelectedSwatch = (swatch == selectedColor)
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .background(c)
+                                    .border(
+                                        width = if (isSelectedSwatch) 2.dp else 1.dp,
+                                        color = if (isSelectedSwatch) palette.foreground else palette.comment
+                                    )
+                                    .clickable {
+                                        selectedColor = swatch
+                                        if (swatch == EventColor.RED) {
+                                            isPersonalHoliday = true
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSelectedSwatch) {
+                                    Text(
+                                        text = "*",
+                                        color = palette.background,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                AsciiHorizontalRule()
-                Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AsciiHorizontalRule()
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BracketButton(
-                        label = if (isPersonalHoliday) {
-                            "[X] ${AppStrings.personalHolidayCheckbox(ne)}"
-                        } else {
-                            "[ ] ${AppStrings.personalHolidayCheckbox(ne)}"
-                        },
-                        highlighted = isPersonalHoliday,
-                        onClick = {
+                    PlaintextToggleRow(
+                        label = AppStrings.personalHolidayCheckbox(ne),
+                        checked = isPersonalHoliday,
+                        onToggle = {
                             isPersonalHoliday = !isPersonalHoliday
                             if (isPersonalHoliday && selectedColor == EventColor.GREEN) {
                                 selectedColor = EventColor.RED
                             }
                         },
-                        textColor = if (isPersonalHoliday) palette.red else palette.foreground
+                        activeColor = palette.red,
+                        labelColor = if (isPersonalHoliday) palette.red else palette.foreground
                     )
-                }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BracketButton(
-                        label = if (reminderEnabled) {
-                            "[X] ${AppStrings.reminderCheckbox(ne)}"
-                        } else {
-                            "[ ] ${AppStrings.reminderCheckbox(ne)}"
-                        },
-                        highlighted = reminderEnabled,
-                        onClick = { reminderEnabled = !reminderEnabled },
-                        textColor = if (reminderEnabled) palette.green else palette.comment
+                    PlaintextToggleRow(
+                        label = AppStrings.reminderCheckbox(ne),
+                        checked = reminderEnabled,
+                        onToggle = { reminderEnabled = !reminderEnabled },
+                        activeColor = palette.green,
+                        labelColor = if (reminderEnabled) palette.foreground else palette.comment
                     )
-                }
 
-                if (reminderEnabled) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        listOf(0, 1, 3, 7).forEach { d ->
-                            val label = if (d == 0) {
-                                AppStrings.todayTag(ne)
-                            } else {
-                                "-${BsCalendarData.formatNumber(d, ne)}d"
+                    if (reminderEnabled) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(0, 1, 3, 7).forEach { d ->
+                                val label = if (d == 0) {
+                                    AppStrings.todayTag(ne)
+                                } else {
+                                    "-${BsCalendarData.formatNumber(d, ne)}d"
+                                }
+                                BracketButton(
+                                    label = label,
+                                    highlighted = (reminderDaysBefore == d),
+                                    onClick = { reminderDaysBefore = d }
+                                )
                             }
-                            BracketButton(
-                                label = label,
-                                highlighted = (reminderDaysBefore == d),
-                                onClick = { reminderDaysBefore = d }
-                            )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${AppStrings.timeLabel(ne)} ${BsCalendarData.formatTime24h(reminderHour, reminderMinute, ne)}",
-                            color = palette.cyan,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            BracketButton(
-                                label = "-1h",
-                                onClick = { reminderHour = (reminderHour + 23) % 24 }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${AppStrings.timeLabel(ne)} ${BsCalendarData.formatTime24h(reminderHour, reminderMinute, ne)}",
+                                color = palette.cyan,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
                             )
-                            BracketButton(
-                                label = "+1h",
-                                onClick = { reminderHour = (reminderHour + 1) % 24 }
-                            )
-                            BracketButton(
-                                label = "+15m",
-                                onClick = { reminderMinute = (reminderMinute + 15) % 60 }
-                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                BracketButton(
+                                    label = "-1h",
+                                    onClick = { reminderHour = (reminderHour + 23) % 24 }
+                                )
+                                BracketButton(
+                                    label = "+1h",
+                                    onClick = { reminderHour = (reminderHour + 1) % 24 }
+                                )
+                                BracketButton(
+                                    label = "+15m",
+                                    onClick = { reminderMinute = (reminderMinute + 15) % 60 }
+                                )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 AsciiHorizontalRule()
                 Spacer(modifier = Modifier.height(6.dp))
 

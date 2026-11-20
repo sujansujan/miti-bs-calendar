@@ -28,7 +28,9 @@ import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.notifications.AlarmScheduler
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
+import np.com.miti.patro.widget.MitiPatroWidgetProvider
 import java.time.LocalDate
+import java.util.concurrent.ConcurrentHashMap
 
 @Immutable
 data class CalendarUiState(
@@ -66,8 +68,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         val todayBs: BsDate
     )
 
-    private var cachedGridKey: MonthGridCacheKey? = null
-    private var cachedGridCells: List<BsCalendarDay?> = emptyList()
+    private val gridCache = ConcurrentHashMap<MonthGridCacheKey, List<BsCalendarDay?>>(48)
 
     val uiState: StateFlow<CalendarUiState> = combine(
         _viewingYearMonth,
@@ -79,15 +80,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         val todayAd = LocalDate.now()
         val todayBs = BsDateConverter.adToBs(todayAd)
 
-        val gridKey = MonthGridCacheKey(year, month, todayBs)
-        val gridCells = if (cachedGridKey == gridKey) {
-            cachedGridCells
-        } else {
-            buildMonthGrid(year, month, todayBs).also {
-                cachedGridKey = gridKey
-                cachedGridCells = it
-            }
-        }
+        val gridCells = getMonthGridForPage(year, month, todayBs)
 
         val eventsMap = eventRepo.resolveEventsForMonth(
             allEvents = allEvents,
@@ -202,6 +195,43 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         return cells
     }
 
+    fun getMonthGridForPage(year: Int, month: Int, todayBs: BsDate): List<BsCalendarDay?> {
+        val safeYear = year.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        val safeMonth = month.coerceIn(1, 12)
+        val key = MonthGridCacheKey(safeYear, safeMonth, todayBs)
+        gridCache[key]?.let { return it }
+        if (gridCache.size >= 48) {
+            gridCache.clear()
+        }
+        val built = buildMonthGrid(safeYear, safeMonth, todayBs)
+        gridCache[key] = built
+        return built
+    }
+
+    fun getEventsForMonthPage(
+        allEvents: List<EventEntity>,
+        year: Int,
+        month: Int,
+        strategy: MissingDayStrategy
+    ): Map<Int, List<ResolvedEventInstance>> {
+        val safeYear = year.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        val safeMonth = month.coerceIn(1, 12)
+        return eventRepo.resolveEventsForMonth(
+            allEvents = allEvents,
+            bsYear = safeYear,
+            bsMonth = safeMonth,
+            strategy = strategy
+        )
+    }
+
+    fun onPagerSettledMonth(year: Int, month: Int) {
+        val target = year.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR) to month.coerceIn(1, 12)
+        if (_viewingYearMonth.value != target) {
+            _viewingYearMonth.value = target
+            _selectedBsDate.value = null
+        }
+    }
+
     fun selectDate(bsDate: BsDate) {
         _selectedBsDate.value = if (_selectedBsDate.value == bsDate) null else bsDate
     }
@@ -282,6 +312,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                 )
                 _statusBanner.value = "Saved & synced $synced yearly BS occurrences to Google Calendar."
             }
+            MitiPatroWidgetProvider.requestUpdate(app)
         }
     }
 
@@ -290,6 +321,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             AlarmScheduler.cancelAlarm(app, event.id)
             GoogleCalendarSyncHelper.deleteSyncedOccurrences(app, event.id)
             eventRepo.deleteEvent(event)
+            MitiPatroWidgetProvider.requestUpdate(app)
         }
     }
 
@@ -370,12 +402,16 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             for (ev in newEvents) {
                 AlarmScheduler.scheduleNextOccurrence(app, ev, payload.settings.missingDayStrategy)
             }
+            MitiPatroWidgetProvider.requestUpdate(app)
             _statusBanner.value = "Restored settings and ${payload.events.size} events from JSON."
         }
     }
 
     fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { prefsRepo.setThemeMode(mode) }
+        viewModelScope.launch {
+            prefsRepo.setThemeMode(mode)
+            MitiPatroWidgetProvider.requestUpdate(app)
+        }
     }
 
     fun setMissingDayStrategy(strategy: MissingDayStrategy) {
@@ -385,11 +421,15 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             for (ev in events) {
                 AlarmScheduler.scheduleNextOccurrence(app, ev, strategy)
             }
+            MitiPatroWidgetProvider.requestUpdate(app)
         }
     }
 
     fun setNepaliScriptMode(mode: NepaliScriptMode) {
-        viewModelScope.launch { prefsRepo.setNepaliScriptMode(mode) }
+        viewModelScope.launch {
+            prefsRepo.setNepaliScriptMode(mode)
+            MitiPatroWidgetProvider.requestUpdate(app)
+        }
     }
 
     fun setShowGregorianSubDate(enabled: Boolean) {
@@ -401,7 +441,10 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setShowPublicFestivals(enabled: Boolean) {
-        viewModelScope.launch { prefsRepo.setShowPublicFestivals(enabled) }
+        viewModelScope.launch {
+            prefsRepo.setShowPublicFestivals(enabled)
+            MitiPatroWidgetProvider.requestUpdate(app)
+        }
     }
 
     fun setDefaultReminderTime(hour: Int, minute: Int) {

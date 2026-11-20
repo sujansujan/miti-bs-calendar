@@ -8,6 +8,9 @@ import kotlin.math.abs
  */
 object AppStrings {
 
+    fun appBrand(ne: Boolean) = if (ne) "मिति" else "MITI"
+    fun adhikMaasTag(ne: Boolean) = if (ne) "[अधिक मास]" else "[ADHIK]"
+
     fun todayBtn(ne: Boolean) = if (ne) "आज" else "TODAY"
     fun convertBtn(ne: Boolean) = "BS↔AD"
     fun cfgBtn(ne: Boolean) = if (ne) "सेटिङ" else "CFG"

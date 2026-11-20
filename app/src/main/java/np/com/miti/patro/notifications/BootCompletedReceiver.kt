@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import np.com.miti.patro.MitiApplication
+import np.com.miti.patro.widget.MitiPatroWidgetProvider
 
 class BootCompletedReceiver : BroadcastReceiver() {
 
@@ -34,6 +35,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                         strategy = settings.missingDayStrategy
                     )
                 }
+                MitiPatroWidgetProvider.requestUpdate(context)
             } finally {
                 pendingResult.finish()
             }

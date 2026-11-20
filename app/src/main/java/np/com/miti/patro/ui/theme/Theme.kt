@@ -18,12 +18,12 @@ import androidx.core.view.WindowCompat
 import np.com.miti.patro.data.preferences.ThemeMode
 
 private val MonospaceTypography = Typography(
-    bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp),
-    bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
-    bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-    titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp),
-    titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp),
-    labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+    bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, lineHeight = 20.sp),
+    bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp),
+    bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 16.sp),
+    titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, lineHeight = 24.sp),
+    titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 15.sp, lineHeight = 21.sp),
+    labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp)
 )
 
 @Composable

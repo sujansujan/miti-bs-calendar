@@ -1,4 +1,5 @@
 -keepattributes *Annotation*,SourceFile,LineNumberTable
 -keep class np.com.miti.patro.data.local.** { *; }
 -keep class np.com.miti.patro.notifications.** { *; }
+-keep class np.com.miti.patro.widget.** { *; }
 -dontwarn kotlinx.coroutines.**
