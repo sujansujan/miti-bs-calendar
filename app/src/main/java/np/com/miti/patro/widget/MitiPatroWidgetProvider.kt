@@ -85,10 +85,10 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
                 }
 
                 val bgRes = if (isDark) R.drawable.widget_bg_dracula else R.drawable.widget_bg_alucard
-                val fgColor = Color.parseColor(if (isDark) "#F8F8F2" else "#1F1C18")
-                val commentColor = Color.parseColor(if (isDark) "#6272A4" else "#6B5E4C")
-                val cyanColor = Color.parseColor(if (isDark) "#8BE9FD" else "#036A96")
-                val redColor = Color.parseColor(if (isDark) "#FF5555" else "#B8241A")
+                val fgColor = Color.parseColor(if (isDark) "#F8F8F2" else "#1F1F1F")
+                val commentColor = Color.parseColor(if (isDark) "#6272A4" else "#6C664B")
+                val purpleColor = Color.parseColor(if (isDark) "#BD93F9" else "#644AC9")
+                val redColor = Color.parseColor(if (isDark) "#FF5555" else "#CB3A2A")
                 val orangeColor = Color.parseColor(if (isDark) "#FFB86C" else "#A34D14")
                 val greenColor = Color.parseColor(if (isDark) "#50FA7B" else "#14710A")
 
@@ -174,7 +174,7 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
                     val views = RemoteViews(context.packageName, R.layout.widget_miti_patro).apply {
                         setInt(R.id.widget_root, "setBackgroundResource", bgRes)
                         setTextViewText(R.id.widget_header, headerText)
-                        setTextColor(R.id.widget_header, cyanColor)
+                        setTextColor(R.id.widget_header, purpleColor)
                         setTextViewText(R.id.widget_bs_date, bsDateLine)
                         setTextColor(R.id.widget_bs_date, bsDateColor)
                         setTextViewText(R.id.widget_tithi_ad, tithiLine)

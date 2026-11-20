@@ -2,6 +2,7 @@ package np.com.miti.patro.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -24,6 +26,8 @@ import np.com.miti.patro.data.preferences.ThemeMode
 import np.com.miti.patro.data.preferences.UserSettings
 import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.model.MissingDayStrategy
+import np.com.miti.patro.ui.components.AsciiHorizontalRule
+import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.components.PlaintextToggleRow
@@ -58,7 +62,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(palette.background)
             .verticalScroll(scrollState)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -72,33 +76,101 @@ fun SettingsScreen(
             )
             Text(
                 text = AppStrings.settingsTopHeader(ne),
-                color = palette.foreground,
+                color = palette.purple,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 15.sp
             )
         }
 
+        Spacer(modifier = Modifier.height(6.dp))
+        AsciiTableHorizontalBorder(columns = 1)
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.themeSectionHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.themeSectionHeader(ne),
+            headerColor = palette.purple
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    val specHint = when (mode) {
+                        ThemeMode.SYSTEM -> "auto"
+                        ThemeMode.ALUCARD -> "#FFFBEB / #CFCFDE"
+                        ThemeMode.DRACULA -> "#282A36 / #44475A"
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BracketButton(
+                            label = mode.label,
+                            highlighted = (settings.themeMode == mode),
+                            onClick = { onSelectTheme(mode) }
+                        )
+                        Text(
+                            text = specHint,
+                            color = palette.comment,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(4.dp))
+
+            val accentSwatches = listOf(
+                palette.red,
+                palette.orange,
+                palette.yellow,
+                palette.green,
+                palette.cyan,
+                palette.purple,
+                palette.pink
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                ThemeMode.entries.forEach { mode ->
-                    BracketButton(
-                        label = mode.label,
-                        highlighted = (settings.themeMode == mode),
-                        onClick = { onSelectTheme(mode) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "spec:",
+                        color = palette.comment,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
                     )
+                    accentSwatches.forEach { swatch ->
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(swatch)
+                        )
+                    }
                 }
+                Text(
+                    text = if (palette.isDark) "dracula" else "alucard",
+                    color = palette.purple,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.scriptSectionHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.scriptSectionHeader(ne),
+            headerColor = palette.purple
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 NepaliScriptMode.entries.forEach { mode ->
                     BracketButton(
@@ -112,7 +184,10 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.gridDisplayHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.gridDisplayHeader(ne),
+            headerColor = palette.cyan
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 PlaintextToggleRow(
                     label = AppStrings.showAdToggle(ne),
@@ -134,7 +209,10 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.missingDayHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.missingDayHeader(ne),
+            headerColor = palette.cyan
+        ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 MissingDayStrategy.entries.forEach { strat ->
                     BracketButton(
@@ -148,7 +226,10 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.defaultReminderHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.defaultReminderHeader(ne),
+            headerColor = palette.orange
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -188,13 +269,16 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.gcalSyncHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.gcalSyncHeader(ne),
+            headerColor = palette.green
+        ) {
             PlaintextToggleRow(
                 label = AppStrings.autoSyncToggle(ne),
                 checked = settings.syncToGoogleCalendar,
                 onToggle = { onToggleGoogleCalendarSync(!settings.syncToGoogleCalendar) }
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -204,7 +288,7 @@ fun SettingsScreen(
                     text = "${AppStrings.yearsAheadLabel(ne)} ${BsCalendarData.formatNumber(settings.googleSyncYearsAhead, ne)}",
                     color = palette.foreground,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp
+                    fontSize = 12.5.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(5, 15, 30).forEach { yrs ->
@@ -226,7 +310,10 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PlaintextBox(header = AppStrings.backupSectionHeader(ne)) {
+        PlaintextBox(
+            header = AppStrings.backupSectionHeader(ne),
+            headerColor = palette.pink
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

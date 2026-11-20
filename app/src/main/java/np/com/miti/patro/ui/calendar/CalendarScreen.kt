@@ -51,7 +51,8 @@ import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
-import np.com.miti.patro.ui.components.AsciiGridHorizontalDivider
+import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
+import np.com.miti.patro.ui.components.AsciiVerticalPipe
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.CellArtworkMotif
 import np.com.miti.patro.ui.components.FestivalArtResolver
@@ -152,8 +153,6 @@ fun CalendarScreen(
         }
     }
 
-    val gridLineColor = palette.comment.copy(alpha = 0.65f)
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -168,7 +167,7 @@ fun CalendarScreen(
         ) {
             Text(
                 text = AppStrings.appBrand(calNe),
-                color = palette.cyan,
+                color = palette.purple,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
@@ -224,7 +223,7 @@ fun CalendarScreen(
         }
 
         Spacer(modifier = Modifier.height(6.dp))
-        AsciiGridHorizontalDivider(columns = 7)
+        AsciiTableHorizontalBorder(columns = 1)
 
         val monthTitle = BsCalendarData.monthName(state.viewingMonth, calNe)
         val yearTitle = BsCalendarData.formatNumber(state.viewingYear, calNe)
@@ -267,7 +266,7 @@ fun CalendarScreen(
                     if (hasAdhikMaas) {
                         Text(
                             text = AppStrings.adhikMaasTag(calNe),
-                            color = palette.orange,
+                            color = palette.pink,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
@@ -288,7 +287,7 @@ fun CalendarScreen(
             BracketButton(label = ">", onClick = onNextMonth)
         }
 
-        AsciiGridHorizontalDivider(columns = 7)
+        AsciiTableHorizontalBorder(columns = 7)
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -297,12 +296,7 @@ fun CalendarScreen(
                     .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .fillMaxHeight()
-                        .background(gridLineColor)
-                )
+                AsciiVerticalPipe()
                 for (dow in 0..6) {
                     val isSat = dow == 6
                     Text(
@@ -316,16 +310,11 @@ fun CalendarScreen(
                             .weight(1f)
                             .padding(vertical = 4.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(gridLineColor)
-                    )
+                    AsciiVerticalPipe()
                 }
             }
 
-            AsciiGridHorizontalDivider(columns = 7)
+            AsciiTableHorizontalBorder(columns = 7)
 
             HorizontalPager(
                 state = pagerState,
@@ -362,12 +351,7 @@ fun CalendarScreen(
                                 .fillMaxWidth()
                                 .height(IntrinsicSize.Min)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .fillMaxHeight()
-                                    .background(gridLineColor)
-                            )
+                            AsciiVerticalPipe()
                             week.forEach { cell ->
                                 Box(
                                     modifier = Modifier
@@ -398,15 +382,10 @@ fun CalendarScreen(
                                         )
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .fillMaxHeight()
-                                        .background(gridLineColor)
-                                )
+                                AsciiVerticalPipe()
                             }
                         }
-                        AsciiGridHorizontalDivider(columns = 7)
+                        AsciiTableHorizontalBorder(columns = 7)
                     }
                 }
             }
@@ -530,7 +509,7 @@ private fun BsDayCell(
 
     val bgColor = when {
         isSelected -> palette.selection
-        day.isToday -> palette.surface
+        day.isToday -> palette.headerBar
         else -> palette.background
     }
 
@@ -547,7 +526,7 @@ private fun BsDayCell(
         FestivalArtResolver.resolveMotif(day.festivals, events, showFestivals)
     }
     val artworkTint = when (artworkMotif) {
-        CellArtworkMotif.SHRADDHA -> palette.purple
+        CellArtworkMotif.SHRADDHA -> palette.pink
         CellArtworkMotif.BIRTHDAY -> primaryEventColor ?: palette.cyan
         else -> if (isHoliday) palette.red else palette.orange
     }
@@ -558,7 +537,7 @@ private fun BsDayCell(
             .height(72.dp)
             .background(bgColor)
             .then(
-                if (isSelected) Modifier.border(1.5.dp, palette.cyan)
+                if (isSelected) Modifier.border(1.5.dp, palette.purple)
                 else Modifier
             )
             .combinedClickable(
@@ -886,21 +865,11 @@ private fun MonthEventsAndFestivalsBox(
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    PlaintextBox(header = AppStrings.monthScheduleHeader(ne, monthName, yearStr)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    PlaintextBox(
+        header = AppStrings.monthScheduleHeader(ne, monthName, yearStr),
+        headerColor = palette.purple,
+        trailingHeader = {
             if (showSearch) {
-                PlaintextTextInput(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = AppStrings.searchPlaceholder(ne),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
                 BracketButton(
                     label = "X",
                     onClick = {
@@ -910,13 +879,23 @@ private fun MonthEventsAndFestivalsBox(
                     textColor = palette.red
                 )
             } else {
-                Spacer(modifier = Modifier.weight(1f))
                 BracketButton(
                     label = "?",
                     onClick = { showSearch = true },
                     textColor = palette.cyan
                 )
             }
+        }
+    ) {
+        if (showSearch) {
+            PlaintextTextInput(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = AppStrings.searchPlaceholder(ne),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(6.dp))
         }
 
         val trimmedQuery = searchQuery.trim()

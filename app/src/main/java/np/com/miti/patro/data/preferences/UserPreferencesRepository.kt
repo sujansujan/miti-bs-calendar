@@ -16,8 +16,8 @@ import np.com.miti.patro.domain.model.MissingDayStrategy
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "miti_user_settings")
 
 enum class ThemeMode(val key: String, val label: String) {
-    SYSTEM("SYSTEM", "System Auto"),
-    ALUCARD("ALUCARD", "Alucard (Lokta Light)"),
+    SYSTEM("SYSTEM", "System"),
+    ALUCARD("ALUCARD", "Alucard (Light)"),
     DRACULA("DRACULA", "Dracula (Dark)");
 
     companion object {

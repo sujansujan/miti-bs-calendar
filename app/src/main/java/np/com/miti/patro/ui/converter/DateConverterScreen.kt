@@ -32,6 +32,7 @@ import np.com.miti.patro.domain.engine.NepaliFestivals
 import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.ui.components.AsciiHorizontalRule
+import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.BracketButton
 import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.theme.AppStrings
@@ -81,7 +82,7 @@ fun DateConverterScreen(
             .fillMaxSize()
             .background(palette.background)
             .verticalScroll(scrollState)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -95,13 +96,15 @@ fun DateConverterScreen(
             )
             Text(
                 text = AppStrings.converterTopHeader(ne),
-                color = palette.foreground,
+                color = palette.cyan,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 15.sp
             )
         }
 
+        Spacer(modifier = Modifier.height(6.dp))
+        AsciiTableHorizontalBorder(columns = 1)
         Spacer(modifier = Modifier.height(8.dp))
 
         PlaintextBox(
