@@ -22,6 +22,7 @@ import np.com.miti.patro.domain.engine.BsCalendarData
 import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.engine.NepaliFestivals
 import np.com.miti.patro.domain.engine.TithiCalculator
+import np.com.miti.patro.notifications.PersistentTodayNotificationManager
 import np.com.miti.patro.ui.theme.AppStrings
 import java.time.LocalDate
 
@@ -163,10 +164,11 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
 
                 val launchIntent = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    putExtra(MainActivity.EXTRA_OPEN_TODAY, true)
                 }
                 val clickPendingIntent = PendingIntent.getActivity(
                     context,
-                    0,
+                    101,
                     launchIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
@@ -186,6 +188,7 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
                     }
                     appWidgetManager.updateAppWidget(widgetId, views)
                 }
+                PersistentTodayNotificationManager.ensureMidnightAlarmIfNeeded(app)
             } finally {
                 pendingResult.finish()
             }
@@ -193,6 +196,17 @@ class MitiPatroWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        fun hasActiveWidgets(context: Context): Boolean {
+            val mgr = AppWidgetManager.getInstance(context)
+            val component = ComponentName(context, MitiPatroWidgetProvider::class.java)
+            return mgr.getAppWidgetIds(component).isNotEmpty()
+        }
+
+        fun requestUpdateAll(context: Context) {
+            requestUpdate(context)
+            MitiCompactWidgetProvider.requestUpdate(context)
+        }
+
         fun requestUpdate(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, MitiPatroWidgetProvider::class.java)

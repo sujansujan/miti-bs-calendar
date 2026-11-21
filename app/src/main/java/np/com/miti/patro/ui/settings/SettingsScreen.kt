@@ -38,6 +38,8 @@ import np.com.miti.patro.ui.theme.MitiMonospaceFont
 fun SettingsScreen(
     settings: UserSettings,
     hasCalendarPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    onRequestExactAlarms: () -> Unit,
     onBackToCalendar: () -> Unit,
     onSelectTheme: (ThemeMode) -> Unit,
     onSelectStrategy: (MissingDayStrategy) -> Unit,
@@ -287,6 +289,43 @@ fun SettingsScreen(
                 fontSize = 11.sp,
                 lineHeight = 15.sp
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = AppStrings.exactAlarmsLabel(ne),
+                    color = palette.foreground,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 12.5.sp
+                )
+                if (canScheduleExactAlarms) {
+                    Box(
+                        modifier = Modifier
+                            .background(palette.selection)
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "[*${AppStrings.statusOkBtn(ne)}*]",
+                            color = palette.green,
+                            fontFamily = MitiMonospaceFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
+                    }
+                } else {
+                    BracketButton(
+                        label = AppStrings.grantBtn(ne),
+                        highlighted = true,
+                        textColor = palette.orange,
+                        onClick = onRequestExactAlarms
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

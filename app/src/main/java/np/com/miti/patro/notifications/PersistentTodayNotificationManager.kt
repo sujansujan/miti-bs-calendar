@@ -16,6 +16,8 @@ import np.com.miti.patro.domain.engine.BsDateConverter
 import np.com.miti.patro.domain.engine.NepaliFestivals
 import np.com.miti.patro.domain.engine.TithiCalculator
 import np.com.miti.patro.ui.theme.AppStrings
+import np.com.miti.patro.widget.MitiCompactWidgetProvider
+import np.com.miti.patro.widget.MitiPatroWidgetProvider
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -35,12 +37,28 @@ object PersistentTodayNotificationManager {
         }
     }
 
+    fun ensureMidnightAlarmIfNeeded(context: Context) {
+        val appContext = context.applicationContext
+        if (MitiPatroWidgetProvider.hasActiveWidgets(appContext) ||
+            MitiCompactWidgetProvider.hasActiveWidgets(appContext)
+        ) {
+            scheduleNextMidnightRefresh(appContext)
+        }
+    }
+
     suspend fun sync(context: Context) {
         val app = context.applicationContext as MitiApplication
         val settings = app.userPreferencesRepository.userSettingsFlow.first()
 
         if (!settings.persistentTodayNotification) {
-            cancel(app)
+            NotificationHelper.cancelPersistentTodayNotification(app)
+            if (MitiPatroWidgetProvider.hasActiveWidgets(app) ||
+                MitiCompactWidgetProvider.hasActiveWidgets(app)
+            ) {
+                scheduleNextMidnightRefresh(app)
+            } else {
+                cancelMidnightAlarm(app)
+            }
             return
         }
 
@@ -154,6 +172,10 @@ object PersistentTodayNotificationManager {
 
     fun cancel(context: Context) {
         NotificationHelper.cancelPersistentTodayNotification(context)
+        cancelMidnightAlarm(context)
+    }
+
+    private fun cancelMidnightAlarm(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, PersistentNotificationReceiver::class.java).apply {
             action = ACTION_REFRESH_TODAY_NOTIFICATION

@@ -72,6 +72,7 @@ fun EventEditorDialog(
     var title by remember { mutableStateOf(existingEvent?.title ?: "") }
     var notes by remember { mutableStateOf(existingEvent?.notes ?: "") }
     var isShraddha by remember { mutableStateOf(existingEvent?.isShraddha ?: false) }
+    var isRepeating by remember { mutableStateOf(existingEvent?.isRepeating ?: true) }
     var shraddhaTithi by remember {
         mutableIntStateOf(
             if (existingEvent != null && existingEvent.shraddhaTithi in 1..30) {
@@ -150,9 +151,42 @@ fun EventEditorDialog(
                             BracketButton(
                                 label = AppStrings.modeShraddhaTithi(ne),
                                 highlighted = isShraddha,
-                                onClick = { isShraddha = true },
+                                onClick = {
+                                    isShraddha = true
+                                    isRepeating = true
+                                },
                                 textColor = if (isShraddha) palette.orange else palette.comment
                             )
+                        }
+                    }
+
+                    if (!isShraddha) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = AppStrings.repeatScheduleLabel(ne),
+                                color = palette.comment,
+                                fontFamily = MitiMonospaceFont,
+                                fontSize = 11.sp
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                BracketButton(
+                                    label = AppStrings.repeatAnnualBtn(ne),
+                                    highlighted = isRepeating,
+                                    onClick = { isRepeating = true },
+                                    textColor = if (isRepeating) palette.green else palette.comment
+                                )
+                                BracketButton(
+                                    label = AppStrings.repeatOnceBtn(ne),
+                                    highlighted = !isRepeating,
+                                    onClick = { isRepeating = false },
+                                    textColor = if (!isRepeating) palette.yellow else palette.comment
+                                )
+                            }
                         }
                     }
 
@@ -446,6 +480,7 @@ fun EventEditorDialog(
                                     colorKey = selectedColor.key,
                                     isShraddha = isShraddha,
                                     shraddhaTithi = if (isShraddha) shraddhaTithi else 0,
+                                    isRepeating = if (isShraddha) true else isRepeating,
                                     reminderEnabled = reminderEnabled,
                                     reminderDaysBefore = reminderDaysBefore,
                                     reminderHour = reminderHour,

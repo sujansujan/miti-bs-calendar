@@ -26,6 +26,7 @@ data class EventEntity(
     val colorKey: String = EventColor.GREEN.key,
     val isShraddha: Boolean = false,
     val shraddhaTithi: Int = 0,
+    val isRepeating: Boolean = true,
     val reminderEnabled: Boolean = true,
     val reminderDaysBefore: Int = 0,
     val reminderHour: Int = 7,

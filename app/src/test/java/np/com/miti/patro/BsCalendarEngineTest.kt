@@ -363,4 +363,46 @@ class BsCalendarEngineTest {
             }
         }
     }
+
+    @Test
+    fun oneTimeEvent_onlyOccursInStartBsYear() {
+        val oneTime = EventEntity(
+            id = 5L,
+            title = "Passport Appointment",
+            bsMonth = 8,
+            bsDay = 12,
+            startBsYear = 2083,
+            isRepeating = false
+        )
+        val occ2083 = BsDateConverter.resolveEventOccurrencesInBsYear(oneTime, 2083, MissingDayStrategy.CLAMP_TO_LAST_DAY)
+        val occ2084 = BsDateConverter.resolveEventOccurrencesInBsYear(oneTime, 2084, MissingDayStrategy.CLAMP_TO_LAST_DAY)
+        assertEquals(listOf(BsDate(2083, 8, 12)), occ2083.map { it.targetDate })
+        assertTrue("One-time event must not repeat in 2084", occ2084.isEmpty())
+    }
+
+    @Test
+    fun diffBsDates_andDailyPanchanga_areAccurate() {
+        val diff = BsDateConverter.diffBsDates(BsDate(2058, 8, 4), BsDate(2083, 8, 4))
+        assertEquals(25, diff.years)
+        assertEquals(0, diff.months)
+        assertEquals(0, diff.days)
+        assertTrue("25 years must be around 9131 days", diff.totalDays in 9125L..9138L)
+
+        // Mangsir 4, 2083 (Nov 20, 2026) -> Nepal Sambat 1147 Kachhala Thwa
+        val man4Ad = LocalDate.of(2026, 11, 20)
+        val p4 = TithiCalculator.calculateDailyPanchanga(man4Ad)
+        assertEquals(1147, p4.nepalSambatYear)
+        assertEquals("Kachhala", p4.nepalSambatMonthEn)
+        assertEquals("Thwa", p4.nepalSambatPakshaEn)
+        assertEquals(6, p4.sunriseHour)
+        assertEquals(17, p4.sunsetHour)
+        assertTrue("Nakshatra index must be 1..27", p4.nakshatraNumber in 1..27)
+
+        // Mangsir 23, 2083 (Dec 9, 2026) -> Nepal Sambat 1147 Thinla Thwa
+        val man23Ad = LocalDate.of(2026, 12, 9)
+        val p23 = TithiCalculator.calculateDailyPanchanga(man23Ad)
+        assertEquals(1147, p23.nepalSambatYear)
+        assertEquals("Thinla", p23.nepalSambatMonthEn)
+        assertEquals("Thwa", p23.nepalSambatPakshaEn)
+    }
 }

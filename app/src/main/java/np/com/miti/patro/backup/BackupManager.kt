@@ -65,6 +65,7 @@ object BackupManager {
                 put("colorKey", ev.colorKey)
                 put("isShraddha", ev.isShraddha)
                 put("shraddhaTithi", ev.shraddhaTithi)
+                put("isRepeating", ev.isRepeating)
                 put("reminderEnabled", ev.reminderEnabled)
                 put("reminderDaysBefore", ev.reminderDaysBefore)
                 put("reminderHour", ev.reminderHour)
@@ -131,6 +132,7 @@ object BackupManager {
                     colorKey = colorKey,
                     isShraddha = obj.optBoolean("isShraddha", false),
                     shraddhaTithi = obj.optInt("shraddhaTithi", 0).coerceIn(0, 30),
+                    isRepeating = obj.optBoolean("isRepeating", true),
                     reminderEnabled = obj.optBoolean("reminderEnabled", true),
                     reminderDaysBefore = obj.optInt("reminderDaysBefore", 0).coerceIn(0, 30),
                     reminderHour = obj.optInt("reminderHour", 7).coerceIn(0, 23),

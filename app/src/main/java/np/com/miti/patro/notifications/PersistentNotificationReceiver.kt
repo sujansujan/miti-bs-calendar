@@ -17,7 +17,7 @@ class PersistentNotificationReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 PersistentTodayNotificationManager.sync(context)
-                MitiPatroWidgetProvider.requestUpdate(context)
+                MitiPatroWidgetProvider.requestUpdateAll(context)
             } finally {
                 pendingResult.finish()
             }

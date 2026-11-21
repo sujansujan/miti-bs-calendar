@@ -29,9 +29,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +53,7 @@ import np.com.miti.patro.domain.model.BsCalendarDay
 import np.com.miti.patro.domain.model.BsDate
 import np.com.miti.patro.domain.model.MissingDayStrategy
 import np.com.miti.patro.ui.components.AsciiGearIcon
+import np.com.miti.patro.ui.components.AsciiHorizontalRule
 import np.com.miti.patro.ui.components.AsciiLunarPhaseIcon
 import np.com.miti.patro.ui.components.AsciiTableHorizontalBorder
 import np.com.miti.patro.ui.components.AsciiVerticalPipe
@@ -100,6 +103,7 @@ fun CalendarScreen(
     onSelectDate: (BsDate) -> Unit,
     onSaveEvent: (EventEntity) -> Unit,
     onDeleteEvent: (EventEntity) -> Unit,
+    onUndoDeleteEvent: () -> Unit,
     onSyncEventToGCal: (EventEntity) -> Unit,
     onDismissStatusBanner: () -> Unit,
     onOpenConverter: () -> Unit,
@@ -107,6 +111,7 @@ fun CalendarScreen(
 ) {
     val palette = LocalMitiPalette.current
     val haptics = rememberMitiHaptics()
+    val coroutineScope = rememberCoroutineScope()
     val calNe = state.settings.useDevanagari
     val uiNe = state.settings.useDevanagariEverywhere
     val scrollState = rememberScrollState()
@@ -196,7 +201,10 @@ fun CalendarScreen(
                 )
                 BracketButton(
                     label = todayDateLabel,
-                    onClick = onJumpToToday,
+                    onClick = {
+                        onJumpToToday()
+                        coroutineScope.launch { scrollState.animateScrollTo(0) }
+                    },
                     textColor = palette.cyan,
                     backgroundColor = if (isAtToday) Color.Transparent else palette.selection,
                     compact = true,
@@ -238,28 +246,41 @@ fun CalendarScreen(
 
         if (state.statusBannerMessage != null) {
             Spacer(modifier = Modifier.height(6.dp))
+            val isUndoBanner = state.undoableDeletedEvent != null
+            val bannerColor = if (isUndoBanner) palette.orange else palette.green
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(palette.surface)
-                    .border(1.dp, palette.green)
+                    .border(1.dp, bannerColor)
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = state.statusBannerMessage,
-                    color = palette.green,
+                    color = bannerColor,
                     fontFamily = MitiMonospaceFont,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                BracketButton(
-                    label = "X",
-                    onClick = onDismissStatusBanner,
-                    textColor = palette.comment
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isUndoBanner) {
+                        BracketButton(
+                            label = AppStrings.undoBtn(uiNe),
+                            highlighted = true,
+                            onClick = onUndoDeleteEvent,
+                            textColor = palette.cyan,
+                            haptic = MitiHaptic.CONFIRM
+                        )
+                    }
+                    BracketButton(
+                        label = "X",
+                        onClick = onDismissStatusBanner,
+                        textColor = palette.comment
+                    )
+                }
             }
         }
 
@@ -856,6 +877,10 @@ private fun MinimalTodayStrip(
             TithiCalculator.calculateTithiTimeSpan(day.adDate, day.tithi.number)
                 .formatDisplay(day.adDate, ne)
         }
+        var showPanchanga by remember { mutableStateOf(false) }
+        val panchanga = remember(day.adDate, day.tithi, showPanchanga) {
+            if (showPanchanga) TithiCalculator.calculateDailyPanchanga(day.adDate, day.tithi) else null
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -883,13 +908,24 @@ private fun MinimalTodayStrip(
                     fontSize = 11.5.sp,
                     lineHeight = if (ne) 16.sp else 14.sp
                 )
-                Text(
-                    text = "$adDisplay$monthBoundaryMarker",
-                    color = palette.comment,
-                    fontFamily = MitiMonospaceFont,
-                    fontSize = 12.sp,
-                    lineHeight = if (ne) 17.sp else 15.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "$adDisplay$monthBoundaryMarker",
+                        color = palette.comment,
+                        fontFamily = MitiMonospaceFont,
+                        fontSize = 12.sp,
+                        lineHeight = if (ne) 17.sp else 15.sp
+                    )
+                    BracketButton(
+                        label = "${AppStrings.panchangaBtn(ne)} ${if (showPanchanga) "▴" else "▾"}",
+                        onClick = { showPanchanga = !showPanchanga },
+                        textColor = palette.purple,
+                        compact = true
+                    )
+                }
             }
             if (stripMotif != null) {
                 FestivalCellWatermark(
@@ -906,6 +942,35 @@ private fun MinimalTodayStrip(
                 textColor = palette.green,
                 highlighted = true
             )
+        }
+
+        if (panchanga != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            AsciiHorizontalRule()
+            Spacer(modifier = Modifier.height(3.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "${AppStrings.sunriseSunsetLabel(ne)} ${panchanga.formatSunriseSunset(ne)} NST",
+                    color = palette.orange,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+                Text(
+                    text = "${AppStrings.nakshatraLabel(ne)} ${if (ne) panchanga.nakshatraNe else panchanga.nakshatraEn}",
+                    color = palette.cyan,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+                Text(
+                    text = "${AppStrings.nepalSambatLabel(ne)} ${panchanga.formatNepalSambat(ne)}",
+                    color = palette.purple,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+            }
         }
 
         if (showFestivals && day.festivals.isNotEmpty()) {
@@ -950,8 +1015,9 @@ private fun MinimalTodayStrip(
                         .border(1.dp, evColor)
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
+                    val repeatTag = if (!instance.event.isRepeating) " [${AppStrings.oneTimeTag(ne)}]" else ""
                     Text(
-                        text = "● ${instance.event.title} $evBadge",
+                        text = "● ${instance.event.title}$repeatTag $evBadge",
                         color = evColor,
                         fontFamily = MitiMonospaceFont,
                         fontWeight = FontWeight.Bold,
@@ -997,6 +1063,12 @@ private fun MinimalTodayStrip(
     }
 }
 
+private enum class ScheduleSearchFilter {
+    ALL,
+    EVENTS,
+    HOLIDAYS
+}
+
 private data class YearSearchItem(
     val bsDate: BsDate,
     val adDate: LocalDate,
@@ -1030,9 +1102,17 @@ private fun MonthEventsAndFestivalsBox(
 
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var searchFilter by remember { mutableStateOf(ScheduleSearchFilter.ALL) }
+    var showMyEventsAgenda by remember { mutableStateOf(false) }
+
+    val boxHeader = if (showMyEventsAgenda && !showSearch) {
+        AppStrings.myEventsHeader(ne)
+    } else {
+        AppStrings.monthScheduleHeader(ne, monthName, yearStr)
+    }
 
     PlaintextBox(
-        header = AppStrings.monthScheduleHeader(ne, monthName, yearStr),
+        header = boxHeader,
         headerColor = palette.purple,
         trailingHeader = {
             if (showSearch) {
@@ -1040,6 +1120,7 @@ private fun MonthEventsAndFestivalsBox(
                     label = "X",
                     onClick = {
                         searchQuery = ""
+                        searchFilter = ScheduleSearchFilter.ALL
                         showSearch = false
                     },
                     textColor = palette.red
@@ -1062,45 +1143,103 @@ private fun MonthEventsAndFestivalsBox(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                BracketButton(
+                    label = AppStrings.filterAll(ne),
+                    highlighted = searchFilter == ScheduleSearchFilter.ALL,
+                    onClick = { searchFilter = ScheduleSearchFilter.ALL },
+                    textColor = if (searchFilter == ScheduleSearchFilter.ALL) palette.cyan else palette.comment,
+                    compact = true
+                )
+                BracketButton(
+                    label = AppStrings.filterEvents(ne),
+                    highlighted = searchFilter == ScheduleSearchFilter.EVENTS,
+                    onClick = { searchFilter = ScheduleSearchFilter.EVENTS },
+                    textColor = if (searchFilter == ScheduleSearchFilter.EVENTS) palette.green else palette.comment,
+                    compact = true
+                )
+                BracketButton(
+                    label = AppStrings.filterHolidays(ne),
+                    highlighted = searchFilter == ScheduleSearchFilter.HOLIDAYS,
+                    onClick = { searchFilter = ScheduleSearchFilter.HOLIDAYS },
+                    textColor = if (searchFilter == ScheduleSearchFilter.HOLIDAYS) palette.red else palette.comment,
+                    compact = true
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                BracketButton(
+                    label = AppStrings.monthTabBtn(ne),
+                    highlighted = !showMyEventsAgenda,
+                    onClick = { showMyEventsAgenda = false },
+                    textColor = if (!showMyEventsAgenda) palette.cyan else palette.comment,
+                    compact = true
+                )
+                val myCount = BsCalendarData.formatNumber(allEvents.size, ne)
+                BracketButton(
+                    label = "${AppStrings.myEventsTabBtn(ne)} ($myCount)",
+                    highlighted = showMyEventsAgenda,
+                    onClick = { showMyEventsAgenda = true },
+                    textColor = if (showMyEventsAgenda) palette.green else palette.comment,
+                    compact = true
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
         }
 
         val trimmedQuery = searchQuery.trim()
         val pastGray = palette.comment.copy(alpha = 0.55f)
+        val shouldRunSearch = showSearch && (trimmedQuery.isNotEmpty() || searchFilter != ScheduleSearchFilter.ALL)
 
-        if (showSearch && trimmedQuery.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
-            val searchMatches = remember(trimmedQuery, year, allEvents, showFestivals, ne, todayAd) {
+        if (shouldRunSearch) {
+            val searchMatches = remember(trimmedQuery, searchFilter, year, allEvents, showFestivals, ne, todayAd) {
                 val results = mutableListOf<YearSearchItem>()
-                for (ev in allEvents) {
-                    if (year < ev.startBsYear) continue
-                    val matchesText = ev.title.contains(trimmedQuery, ignoreCase = true) ||
-                        ev.note.contains(trimmedQuery, ignoreCase = true) ||
-                        (ev.isShraddha && ("shraddha".contains(trimmedQuery, ignoreCase = true) || "श्राद्ध".contains(trimmedQuery)))
-                    if (!matchesText) continue
+                val includeEvents = searchFilter != ScheduleSearchFilter.HOLIDAYS
+                val includeFestivals = showFestivals && searchFilter != ScheduleSearchFilter.EVENTS
+                val onlyPublicHolidays = searchFilter == ScheduleSearchFilter.HOLIDAYS
 
-                    val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(ev, year, missingDayStrategy)
-                    for (occ in occurrences) {
-                        val ad = BsDateConverter.bsToAd(occ.targetDate)
-                        val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
-                        val yrs = (year - ev.startBsYear).coerceAtLeast(0)
-                        val mShort = BsCalendarData.getShortMonthName(occ.targetDate.month, ne)
-                        val dPad = BsCalendarData.formatNumberPadded(occ.targetDate.day, ne)
-                        val shraddhaTag = if (ev.isShraddha) " (${AppStrings.shraddhaTag(ne)})" else ""
-                        results.add(
-                            YearSearchItem(
-                                bsDate = occ.targetDate,
-                                adDate = ad,
-                                label = "$mShort $dPad | ● ${ev.title}$shraddhaTag",
-                                badge = AppStrings.formatYearAndCountdownBadge(daysDiff, yrs, ne),
-                                color = ev.resolvedColor.composeColor(palette),
-                                isPast = occ.targetDate < todayBs,
-                                isToday = occ.targetDate == todayBs
+                if (includeEvents || onlyPublicHolidays) {
+                    for (ev in allEvents) {
+                        if (onlyPublicHolidays && !ev.isPersonalHoliday) continue
+                        if (year < ev.startBsYear) continue
+                        val matchesText = trimmedQuery.isEmpty() ||
+                            ev.title.contains(trimmedQuery, ignoreCase = true) ||
+                            ev.note.contains(trimmedQuery, ignoreCase = true) ||
+                            (ev.isShraddha && ("shraddha".contains(trimmedQuery, ignoreCase = true) || "श्राद्ध".contains(trimmedQuery)))
+                        if (!matchesText) continue
+
+                        val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(ev, year, missingDayStrategy)
+                        for (occ in occurrences) {
+                            val ad = BsDateConverter.bsToAd(occ.targetDate)
+                            val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
+                            val yrs = (year - ev.startBsYear).coerceAtLeast(0)
+                            val mShort = BsCalendarData.getShortMonthName(occ.targetDate.month, ne)
+                            val dPad = BsCalendarData.formatNumberPadded(occ.targetDate.day, ne)
+                            val shraddhaTag = if (ev.isShraddha) " (${AppStrings.shraddhaTag(ne)})" else ""
+                            val onceTag = if (!ev.isRepeating) " [${AppStrings.oneTimeTag(ne)}]" else ""
+                            results.add(
+                                YearSearchItem(
+                                    bsDate = occ.targetDate,
+                                    adDate = ad,
+                                    label = "$mShort $dPad | ● ${ev.title}$shraddhaTag$onceTag",
+                                    badge = AppStrings.formatYearAndCountdownBadge(daysDiff, yrs, ne),
+                                    color = ev.resolvedColor.composeColor(palette),
+                                    isPast = occ.targetDate < todayBs,
+                                    isToday = occ.targetDate == todayBs
+                                )
                             )
-                        )
+                        }
                     }
                 }
 
-                if (showFestivals) {
+                if (includeFestivals) {
                     for (m in 1..12) {
                         val dim = BsCalendarData.daysInMonth(year, m)
                         val firstAd = BsDateConverter.bsToAd(year, m, 1)
@@ -1111,9 +1250,11 @@ private fun MonthEventsAndFestivalsBox(
                             val tithi = TithiCalculator.calculateTithi(bs, ad)
                             val fests = NepaliFestivals.getFestivalsForDay(bs, tithi)
                             for (f in fests) {
-                                if (f.englishTitle.contains(trimmedQuery, ignoreCase = true) ||
+                                if (onlyPublicHolidays && !f.isPublicHoliday) continue
+                                val matchesText = trimmedQuery.isEmpty() ||
+                                    f.englishTitle.contains(trimmedQuery, ignoreCase = true) ||
                                     f.nepaliTitle.contains(trimmedQuery, ignoreCase = true)
-                                ) {
+                                if (matchesText) {
                                     val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
                                     val dPad = BsCalendarData.formatNumberPadded(d, ne)
                                     val title = if (ne) f.nepaliTitle else f.englishTitle
@@ -1154,6 +1295,7 @@ private fun MonthEventsAndFestivalsBox(
                                 onJumpToDate(item.bsDate)
                                 showSearch = false
                                 searchQuery = ""
+                                searchFilter = ScheduleSearchFilter.ALL
                             }
                             .padding(horizontal = 2.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1165,6 +1307,85 @@ private fun MonthEventsAndFestivalsBox(
                             fontFamily = MitiMonospaceFont,
                             fontWeight = if (item.isToday || !item.isPast) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 14.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        } else if (!showSearch && showMyEventsAgenda) {
+            val upcomingItems = remember(allEvents, todayBs, todayAd, missingDayStrategy, ne) {
+                val list = mutableListOf<YearSearchItem>()
+                val candidateYears = listOf(todayBs.year, (todayBs.year + 1).coerceAtMost(BsCalendarData.MAX_YEAR)).distinct()
+                for (ev in allEvents) {
+                    var picked: Pair<BsDate, LocalDate>? = null
+                    if (!ev.isRepeating) {
+                        val occ = BsDateConverter.resolveEventOccurrence(ev, ev.startBsYear, missingDayStrategy)
+                        if (occ != null) {
+                            picked = occ.targetDate to BsDateConverter.bsToAd(occ.targetDate)
+                        }
+                    } else {
+                        for (candY in candidateYears) {
+                            if (candY < ev.startBsYear) continue
+                            val occs = BsDateConverter.resolveEventOccurrencesInBsYear(ev, candY, missingDayStrategy)
+                            val future = occs.firstOrNull { it.targetDate >= todayBs }
+                            if (future != null) {
+                                picked = future.targetDate to BsDateConverter.bsToAd(future.targetDate)
+                                break
+                            }
+                        }
+                    }
+                    if (picked != null) {
+                        val (bs, ad) = picked
+                        val daysDiff = ChronoUnit.DAYS.between(todayAd, ad)
+                        val yrs = (bs.year - ev.startBsYear).coerceAtLeast(0)
+                        val mShort = BsCalendarData.getShortMonthName(bs.month, ne)
+                        val dPad = BsCalendarData.formatNumberPadded(bs.day, ne)
+                        val yStr = BsCalendarData.formatNumber(bs.year, ne)
+                        val shraddhaTag = if (ev.isShraddha) " (${AppStrings.shraddhaTag(ne)})" else ""
+                        val onceTag = if (!ev.isRepeating) " [${AppStrings.oneTimeTag(ne)}]" else ""
+                        list.add(
+                            YearSearchItem(
+                                bsDate = bs,
+                                adDate = ad,
+                                label = "$yStr $mShort $dPad | ● ${ev.title}$shraddhaTag$onceTag",
+                                badge = AppStrings.formatYearAndCountdownBadge(daysDiff, yrs, ne),
+                                color = ev.resolvedColor.composeColor(palette),
+                                isPast = bs < todayBs,
+                                isToday = bs == todayBs
+                            )
+                        )
+                    }
+                }
+                list.sortedWith(compareBy<YearSearchItem> { it.isPast }.thenBy { it.bsDate })
+            }
+
+            if (upcomingItems.isEmpty()) {
+                Text(
+                    text = AppStrings.noSavedEvents(ne),
+                    color = palette.comment,
+                    fontFamily = MitiMonospaceFont,
+                    fontSize = 13.sp
+                )
+            } else {
+                upcomingItems.forEach { item ->
+                    val itemColor = if (item.isPast) pastGray else item.color
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                haptics(MitiHaptic.TICK)
+                                onJumpToDate(item.bsDate)
+                            }
+                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${item.label} ${item.badge}",
+                            color = itemColor,
+                            fontFamily = MitiMonospaceFont,
+                            fontWeight = if (item.isToday || !item.isPast) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 13.5.sp,
                             modifier = Modifier.weight(1f)
                         )
                     }

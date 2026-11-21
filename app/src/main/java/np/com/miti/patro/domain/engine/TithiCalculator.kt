@@ -62,6 +62,97 @@ object TithiCalculator {
         }
     }
 
+    data class DailyPanchanga(
+        val sunriseHour: Int,
+        val sunriseMinute: Int,
+        val sunsetHour: Int,
+        val sunsetMinute: Int,
+        val nakshatraNumber: Int,
+        val nakshatraEn: String,
+        val nakshatraNe: String,
+        val nepalSambatYear: Int,
+        val nepalSambatMonthEn: String,
+        val nepalSambatMonthNe: String,
+        val nepalSambatPakshaEn: String,
+        val nepalSambatPakshaNe: String,
+        val isAdhikMaas: Boolean
+    ) {
+        fun formatSunriseSunset(useDevanagari: Boolean): String {
+            val sr = BsCalendarData.formatTime24h(sunriseHour, sunriseMinute, useDevanagari)
+            val ss = BsCalendarData.formatTime24h(sunsetHour, sunsetMinute, useDevanagari)
+            return "$sr / $ss"
+        }
+
+        fun formatNepalSambat(useDevanagari: Boolean): String {
+            val yStr = BsCalendarData.formatNumber(nepalSambatYear, useDevanagari)
+            return if (useDevanagari) {
+                val adhik = if (isAdhikMaas) "अनाला " else ""
+                "ने.सं. $yStr $adhik${nepalSambatMonthNe}${nepalSambatPakshaNe}"
+            } else {
+                val adhik = if (isAdhikMaas) "Anala " else ""
+                "NS $yStr $adhik$nepalSambatMonthEn $nepalSambatPakshaEn"
+            }
+        }
+    }
+
+    private val NAKSHATRA_NAMES_EN = arrayOf(
+        "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+        "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+        "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+        "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha",
+        "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+    )
+
+    private val NAKSHATRA_NAMES_NE = arrayOf(
+        "अश्विनी", "भरणी", "कृत्तिका", "रोहिणी", "मृगशिरा", "आर्द्रा",
+        "पुनर्वसु", "पुष्य", "अश्लेषा", "मघा", "पूर्वफाल्गुनी", "उत्तरफाल्गुनी",
+        "हस्ता", "चित्रा", "स्वाती", "विशाखा", "अनुराधा", "ज्येष्ठा",
+        "मूल", "पूर्वाषाढा", "उत्तराषाढा", "श्रवण", "धनिष्ठा", "शतभिषा",
+        "पूर्वभाद्रपदा", "उत्तरभाद्रपदा", "रेवती"
+    )
+
+    // Indexed by Amanta shuddhaLunarMonth 1..12 (1=Baisakh -> Bachhala .. 7=Kartik -> Kachhala .. 12=Chaitra -> Chaula)
+    private val NEPAL_SAMBAT_MONTH_EN = arrayOf(
+        "Bachhala", "Tachhala", "Dilla", "Gunla", "Yanla", "Kaula",
+        "Kachhala", "Thinla", "Pohela", "Silla", "Chilla", "Chaula"
+    )
+
+    private val NEPAL_SAMBAT_MONTH_NE = arrayOf(
+        "बछला", "तछला", "दिल्ला", "गुँला", "ञला", "कौला",
+        "कछला", "थिंला", "पोहेला", "सिल्ला", "चिल्ला", "चौला"
+    )
+
+    fun calculateDailyPanchanga(adDate: LocalDate, tithi: TithiInfo = calculateTithiAtSunrise(adDate)): DailyPanchanga {
+        val (sr, ss) = kathmanduSunriseSunsetNst(adDate)
+        val srMin = (sr * 60.0).roundToInt().coerceIn(0, 1439)
+        val ssMin = (ss * 60.0).roundToInt().coerceIn(0, 1439)
+
+        val (sunAppLong, moonAppLong, sunSidereal) = sunMoonSiderealAtNst(adDate, sr + PATRO_TRIGATI_HOURS)
+        val ayanamsa = normalizeDegrees(sunAppLong - sunSidereal)
+        val moonSidereal = normalizeDegrees(moonAppLong - ayanamsa)
+        val nakIdx = (floor(moonSidereal / (360.0 / 27.0)).toInt()).coerceIn(0, 26)
+
+        val lm = tithi.shuddhaLunarMonth.coerceIn(1, 12)
+        val nsYear = if (lm in 7..9 && adDate.monthValue >= 10) adDate.year - 879 else adDate.year - 880
+        val isShukla = tithi.number <= 15
+
+        return DailyPanchanga(
+            sunriseHour = srMin / 60,
+            sunriseMinute = srMin % 60,
+            sunsetHour = ssMin / 60,
+            sunsetMinute = ssMin % 60,
+            nakshatraNumber = nakIdx + 1,
+            nakshatraEn = NAKSHATRA_NAMES_EN[nakIdx],
+            nakshatraNe = NAKSHATRA_NAMES_NE[nakIdx],
+            nepalSambatYear = nsYear,
+            nepalSambatMonthEn = NEPAL_SAMBAT_MONTH_EN[lm - 1],
+            nepalSambatMonthNe = NEPAL_SAMBAT_MONTH_NE[lm - 1],
+            nepalSambatPakshaEn = if (isShukla) "Thwa" else "Ga",
+            nepalSambatPakshaNe = if (isShukla) "थ्व" else "गा",
+            isAdhikMaas = tithi.isAdhikMaas
+        )
+    }
+
     private val TITHI_CACHE = ConcurrentHashMap<Long, TithiInfo>(512)
     private val TITHI_SPAN_CACHE = ConcurrentHashMap<Long, TithiTimeSpan>(256)
     private val RAW_SUNRISE_CACHE = ConcurrentHashMap<Long, Int>(1024)

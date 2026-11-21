@@ -76,8 +76,12 @@ object GoogleCalendarSyncHelper {
         deleteSyncedOccurrences(context, event.id)
 
         val currentBsYear = BsDateConverter.todayBs().year
-        val startYear = maxOf(currentBsYear, event.startBsYear)
-        val endYear = (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
+        val startYear = if (event.isRepeating) maxOf(currentBsYear, event.startBsYear) else event.startBsYear
+        val endYear = if (event.isRepeating) {
+            (currentBsYear + yearsAhead).coerceAtMost(BsCalendarData.MAX_YEAR)
+        } else {
+            event.startBsYear.coerceIn(BsCalendarData.MIN_YEAR, BsCalendarData.MAX_YEAR)
+        }
         val zoneId = ZoneId.of("Asia/Kathmandu")
 
         var insertedCount = 0

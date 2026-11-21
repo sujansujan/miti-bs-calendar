@@ -111,12 +111,59 @@ object BsDateConverter {
      *    (4th fifth of daytime in Kathmandu), then Udaya/Kshaya fallback within that same lunation.
      * 3. Returns occurrences falling strictly inside [targetBsYear], ordered chronologically.
      */
+    data class BsDateDiff(
+        val years: Int,
+        val months: Int,
+        val days: Int,
+        val totalDays: Long,
+        val isInverted: Boolean
+    )
+
+    /**
+     * Computes exact Bikram Sambat calendar difference (years, months, days) and exact total solar days
+     * between [start] and [end], accounting for variable BS month lengths (29..32 days).
+     */
+    fun diffBsDates(start: BsDate, end: BsDate): BsDateDiff {
+        val inverted = end < start
+        val from = if (inverted) end else start
+        val to = if (inverted) start else end
+
+        val totalDays = ChronoUnit.DAYS.between(bsToAd(from), bsToAd(to))
+        var years = to.year - from.year
+        var months = to.month - from.month
+        var days = to.day - from.day
+
+        if (days < 0) {
+            months -= 1
+            val prevMonthYear = if (to.month == 1) to.year - 1 else to.year
+            val prevMonth = if (to.month == 1) 12 else to.month - 1
+            val prevMonthLen = if (prevMonthYear in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) {
+                BsCalendarData.getDaysInMonth(prevMonthYear, prevMonth)
+            } else {
+                30
+            }
+            days += prevMonthLen
+        }
+        if (months < 0) {
+            years -= 1
+            months += 12
+        }
+        return BsDateDiff(
+            years = years.coerceAtLeast(0),
+            months = months.coerceAtLeast(0),
+            days = days.coerceAtLeast(0),
+            totalDays = totalDays,
+            isInverted = inverted
+        )
+    }
+
     fun resolveEventOccurrencesInBsYear(
         event: EventEntity,
         targetBsYear: Int,
         strategy: MissingDayStrategy
     ): List<ResolvedBsOccurrence> {
         if (targetBsYear !in BsCalendarData.MIN_YEAR..BsCalendarData.MAX_YEAR) return emptyList()
+        if (!event.isRepeating && targetBsYear != event.startBsYear) return emptyList()
 
         if (event.isShraddha && event.shraddhaTithi in 1..30) {
             val targetLunarMonth = getShraddhaLunarMonth(event)
@@ -124,6 +171,16 @@ object BsDateConverter {
                 targetLunarMonth = targetLunarMonth,
                 targetTithi = event.shraddhaTithi,
                 targetBsYear = targetBsYear
+            )
+        }
+
+        if (!event.isRepeating) {
+            val maxDay = BsCalendarData.getDaysInMonth(event.startBsYear, event.bsMonth)
+            return listOf(
+                ResolvedBsOccurrence(
+                    targetDate = BsDate(event.startBsYear, event.bsMonth, event.bsDay.coerceIn(1, maxDay)),
+                    wasAdjusted = false
+                )
             )
         }
 

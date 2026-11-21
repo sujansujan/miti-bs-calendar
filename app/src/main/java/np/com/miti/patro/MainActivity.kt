@@ -1,9 +1,12 @@
 package np.com.miti.patro
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,26 +21,45 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import np.com.miti.patro.domain.engine.BsCalendarData
+import np.com.miti.patro.notifications.AlarmScheduler
 import np.com.miti.patro.notifications.NotificationHelper
 import np.com.miti.patro.notifications.PersistentTodayNotificationManager
 import np.com.miti.patro.sync.GoogleCalendarSyncHelper
 import np.com.miti.patro.ui.calendar.CalendarScreen
 import np.com.miti.patro.ui.calendar.CalendarViewModel
 import np.com.miti.patro.ui.calendar.EventEditorDialog
+import np.com.miti.patro.ui.components.AsciiHorizontalRule
+import np.com.miti.patro.ui.components.BracketButton
+import np.com.miti.patro.ui.components.MitiHaptic
+import np.com.miti.patro.ui.components.PlaintextBox
 import np.com.miti.patro.ui.converter.DateConverterScreen
 import np.com.miti.patro.ui.settings.SettingsScreen
+import np.com.miti.patro.ui.theme.AppStrings
 import np.com.miti.patro.ui.theme.LocalMitiPalette
+import np.com.miti.patro.ui.theme.MitiMonospaceFont
 import np.com.miti.patro.ui.theme.MitiTheme
 
 private enum class ActiveScreen {
@@ -48,10 +70,34 @@ private enum class ActiveScreen {
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_OPEN_TODAY = "extra_open_today"
+    }
+
     private val vm: CalendarViewModel by viewModels()
+    private val openTodayTrigger = mutableIntStateOf(0)
+    private val canExactAlarmsState = mutableStateOf(true)
+
+    override fun onResume() {
+        super.onResume()
+        canExactAlarmsState.value = AlarmScheduler.canScheduleExactAlarms(this)
+        vm.onAppResumed()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_TODAY, false)) {
+            openTodayTrigger.intValue += 1
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        canExactAlarmsState.value = AlarmScheduler.canScheduleExactAlarms(this)
+        if (intent?.getBooleanExtra(EXTRA_OPEN_TODAY, false) == true) {
+            openTodayTrigger.intValue += 1
+        }
 
         setContent {
             val state by vm.uiState.collectAsStateWithLifecycle()
@@ -60,6 +106,8 @@ class MainActivity : ComponentActivity() {
             var hasCalendarPermission by remember {
                 mutableStateOf(GoogleCalendarSyncHelper.hasCalendarPermissions(this))
             }
+            val canScheduleExactAlarms by canExactAlarmsState
+            val openTodayTick by openTodayTrigger
 
             var pendingEnablePersistentNotif by remember { mutableStateOf(false) }
 
@@ -97,7 +145,14 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 if (uri != null) {
-                    vm.importBackupFromUri(uri)
+                    vm.previewBackupFromUri(uri)
+                }
+            }
+
+            LaunchedEffect(openTodayTick) {
+                if (openTodayTick > 0) {
+                    activeScreen = ActiveScreen.CALENDAR
+                    vm.jumpToToday()
                 }
             }
 
@@ -161,6 +216,7 @@ class MainActivity : ComponentActivity() {
                                     onSelectDate = vm::selectDate,
                                     onSaveEvent = vm::saveEvent,
                                     onDeleteEvent = vm::deleteEvent,
+                                    onUndoDeleteEvent = vm::undoDeleteEvent,
                                     onSyncEventToGCal = vm::exportSingleEventToGoogleCalendar,
                                     onDismissStatusBanner = vm::dismissStatusBanner,
                                     onOpenConverter = { activeScreen = ActiveScreen.CONVERTER },
@@ -187,6 +243,20 @@ class MainActivity : ComponentActivity() {
                                 SettingsScreen(
                                     settings = state.settings,
                                     hasCalendarPermission = hasCalendarPermission,
+                                    canScheduleExactAlarms = canScheduleExactAlarms,
+                                    onRequestExactAlarms = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            val intent = Intent(
+                                                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                                Uri.parse("package:$packageName")
+                                            )
+                                            try {
+                                                startActivity(intent)
+                                            } catch (_: Exception) {
+                                                startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                                            }
+                                        }
+                                    },
                                     onBackToCalendar = { activeScreen = ActiveScreen.CALENDAR },
                                     onSelectTheme = vm::setThemeMode,
                                     onSelectStrategy = vm::setMissingDayStrategy,
@@ -259,6 +329,59 @@ class MainActivity : ComponentActivity() {
                                 quickAddBsDate = null
                             }
                         )
+                    }
+
+                    val pendingImport = state.pendingBackupImport
+                    if (pendingImport != null) {
+                        val ne = state.settings.useDevanagariEverywhere
+                        val countStr = BsCalendarData.formatNumber(pendingImport.events.size, ne)
+                        val existingStr = BsCalendarData.formatNumber(state.allEvents.size, ne)
+                        Dialog(onDismissRequest = vm::dismissBackupImportPreview) {
+                            PlaintextBox(
+                                header = AppStrings.backupImportHeader(ne),
+                                headerColor = palette.orange
+                            ) {
+                                Text(
+                                    text = if (ne) {
+                                        "ब्याकअप फाइलमा $countStr कार्यक्रम भेटियो (हाल $existingStr वटा सेभ छन्)।"
+                                    } else {
+                                        "Found $countStr event(s) in backup ($existingStr currently saved)."
+                                    },
+                                    color = palette.foreground,
+                                    fontFamily = MitiMonospaceFont,
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 18.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                AsciiHorizontalRule()
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    BracketButton(
+                                        label = AppStrings.mergeBackupBtn(ne),
+                                        highlighted = true,
+                                        textColor = palette.green,
+                                        haptic = MitiHaptic.CONFIRM,
+                                        onClick = { vm.confirmBackupImport(merge = true) }
+                                    )
+                                    BracketButton(
+                                        label = AppStrings.replaceBackupBtn(ne),
+                                        textColor = palette.orange,
+                                        haptic = MitiHaptic.CONFIRM,
+                                        onClick = { vm.confirmBackupImport(merge = false) }
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        BracketButton(
+                                            label = AppStrings.cancelBtn(ne),
+                                            textColor = palette.red,
+                                            onClick = vm::dismissBackupImportPreview
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

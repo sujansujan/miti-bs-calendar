@@ -6,4 +6,5 @@
     <string name="persistent_channel_name">Today\'s BS Date (Persistent)</string>
     <string name="persistent_channel_desc">Silent ongoing notification showing today\'s Bikram Sambat date, Tithi, and events</string>
     <string name="widget_description">Today\'s Nepali BS date, Tithi, and upcoming festivals or events</string>
+    <string name="widget_compact_description">Compact 2x1 badge with today\'s Nepali BS date and Tithi</string>
 </resources>

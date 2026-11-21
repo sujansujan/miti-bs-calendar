@@ -81,7 +81,7 @@ class EventRepository(private val eventDao: EventDao) {
                 }
             }
 
-            if (bsMonth == 1 && !event.isShraddha && strategy == MissingDayStrategy.ROLL_TO_NEXT_MONTH && bsYear - 1 >= event.startBsYear) {
+            if (bsMonth == 1 && event.isRepeating && !event.isShraddha && strategy == MissingDayStrategy.ROLL_TO_NEXT_MONTH && bsYear - 1 >= event.startBsYear) {
                 val prevOccurrence = BsDateConverter.resolveEventOccurrence(
                     event = event,
                     targetBsYear = bsYear - 1,

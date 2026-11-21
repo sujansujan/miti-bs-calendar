@@ -25,6 +25,41 @@ object AppStrings {
     fun gcalExportBtn(ne: Boolean) = if (ne) "गुगल" else "GCAL"
     fun editBtn(ne: Boolean) = if (ne) "सम्पादन" else "EDIT"
     fun delBtn(ne: Boolean) = if (ne) "हटाउनु" else "DEL"
+    fun undoBtn(ne: Boolean) = if (ne) "फिर्ता" else "UNDO"
+
+    fun panchangaBtn(ne: Boolean) = if (ne) "पञ्चाङ्ग" else "PANCHANGA"
+    fun sunriseSunsetLabel(ne: Boolean) = if (ne) "सूर्योदय / सूर्यास्त:" else "SUNRISE / SUNSET:"
+    fun nakshatraLabel(ne: Boolean) = if (ne) "नक्षत्र:" else "NAKSHATRA:"
+    fun nepalSambatLabel(ne: Boolean) = if (ne) "नेपाल संवत्:" else "NEPAL SAMBAT:"
+
+    fun monthTabBtn(ne: Boolean) = if (ne) "महिना" else "MONTH"
+    fun myEventsTabBtn(ne: Boolean) = if (ne) "मेरा कार्यक्रम" else "MY EVENTS"
+    fun myEventsHeader(ne: Boolean) = if (ne) "आगामी मेरा कार्यक्रमहरू" else "UPCOMING MY EVENTS"
+    fun noSavedEvents(ne: Boolean) = if (ne) "कुनै व्यक्तिगत कार्यक्रम सेभ गरिएको छैन।" else "No personal events saved yet."
+
+    fun filterAll(ne: Boolean) = if (ne) "सबै" else "ALL"
+    fun filterEvents(ne: Boolean) = if (ne) "कार्यक्रम" else "EVENTS"
+    fun filterHolidays(ne: Boolean) = if (ne) "बिदा" else "HOLIDAYS"
+
+    fun repeatScheduleLabel(ne: Boolean) = if (ne) "दोहोरिने:" else "REPEAT:"
+    fun repeatAnnualBtn(ne: Boolean) = if (ne) "वार्षिक" else "ANNUAL"
+    fun repeatOnceBtn(ne: Boolean) = if (ne) "एक पटक" else "ONE-TIME"
+    fun oneTimeTag(ne: Boolean) = if (ne) "एक पटक" else "1x"
+
+    fun exactAlarmsLabel(ne: Boolean) = if (ne) "सटीक अलार्म अनुमति:" else "Exact Alarms:"
+    fun statusOkBtn(ne: Boolean) = if (ne) "ठीक छ" else "OK"
+    fun grantBtn(ne: Boolean) = if (ne) "अनुमति दिनुहोस्" else "GRANT"
+
+    fun backupImportHeader(ne: Boolean) = if (ne) "ब्याकअप आयात (IMPORT)" else "IMPORT BACKUP"
+    fun mergeBackupBtn(ne: Boolean) = if (ne) "मिलाउनुहोस् (MERGE)" else "MERGE"
+    fun replaceBackupBtn(ne: Boolean) = if (ne) "सबै बदल्नुहोस् (REPLACE)" else "REPLACE ALL"
+
+    fun ageDiffTabBtn(ne: Boolean) = if (ne) "उमेर / अन्तर" else "AGE / DIFF"
+    fun startDateLabel(ne: Boolean) = if (ne) "सुरु मिति (BS):" else "FROM DATE (BS):"
+    fun endDateLabel(ne: Boolean) = if (ne) "अन्तिम मिति (BS):" else "TO DATE (BS):"
+    fun diffSummaryLabel(ne: Boolean) = if (ne) "अन्तर / उमेर:" else "AGE / SPAN:"
+    fun totalDaysLabel(ne: Boolean) = if (ne) "जम्मा दिन:" else "TOTAL DAYS:"
+    fun totalWeeksLabel(ne: Boolean) = if (ne) "जम्मा हप्ता:" else "TOTAL WEEKS:"
 
     fun monthScheduleHeader(ne: Boolean, monthName: String, yearStr: String) =
         if (ne) "$monthName $yearStr कार्यक्रम र पर्व" else "${monthName.uppercase()} $yearStr EVENTS & FESTIVALS"

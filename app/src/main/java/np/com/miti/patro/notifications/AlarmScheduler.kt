@@ -20,6 +20,15 @@ object AlarmScheduler {
     const val EXTRA_RESOLVED_BS_MONTH = "extra_resolved_bs_month"
     const val EXTRA_RESOLVED_BS_DAY = "extra_resolved_bs_day"
 
+    fun canScheduleExactAlarms(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+    }
+
     fun scheduleNextOccurrence(
         context: Context,
         event: EventEntity,
@@ -32,9 +41,10 @@ object AlarmScheduler {
 
         val nowZdt = ZonedDateTime.now(ZoneId.systemDefault())
         val todayBs = BsDateConverter.adToBs(nowZdt.toLocalDate())
-        val startSearchYear = maxOf(todayBs.year, event.startBsYear)
+        val startSearchYear = if (event.isRepeating) maxOf(todayBs.year, event.startBsYear) else event.startBsYear
+        val endSearchYear = if (event.isRepeating) BsCalendarData.MAX_YEAR else event.startBsYear
 
-        for (candidateYear in startSearchYear..BsCalendarData.MAX_YEAR) {
+        for (candidateYear in startSearchYear..endSearchYear) {
             val occurrences = BsDateConverter.resolveEventOccurrencesInBsYear(
                 event = event,
                 targetBsYear = candidateYear,

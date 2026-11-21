@@ -6,11 +6,14 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import np.com.miti.patro.MitiApplication
 import np.com.miti.patro.backup.BackupManager
@@ -46,7 +49,9 @@ data class CalendarUiState(
     val eventsByDayInMonth: Map<Int, List<ResolvedEventInstance>>,
     val allEvents: List<EventEntity>,
     val settings: UserSettings,
-    val statusBannerMessage: String? = null
+    val statusBannerMessage: String? = null,
+    val undoableDeletedEvent: EventEntity? = null,
+    val pendingBackupImport: BackupManager.BackupPayload? = null
 ) {
     val effectiveAnchorBsDate: BsDate
         get() = selectedBsDate ?: todayBs
@@ -54,14 +59,22 @@ data class CalendarUiState(
 
 class CalendarViewModel(application: Application) : AndroidViewModel(application) {
 
+    private data class UiExtras(
+        val statusBanner: String? = null,
+        val undoDeletedEvent: EventEntity? = null,
+        val pendingBackupImport: BackupManager.BackupPayload? = null,
+        val todayTick: Long = 0L
+    )
+
     private val app = application as MitiApplication
     private val eventRepo = app.eventRepository
     private val prefsRepo = app.userPreferencesRepository
 
-    private val initialTodayBs = BsDateConverter.todayBs()
-    private val _viewingYearMonth = MutableStateFlow(initialTodayBs.year to initialTodayBs.month)
+    private var lastKnownTodayBs = BsDateConverter.todayBs()
+    private val _viewingYearMonth = MutableStateFlow(lastKnownTodayBs.year to lastKnownTodayBs.month)
     private val _selectedBsDate = MutableStateFlow<BsDate?>(null)
-    private val _statusBanner = MutableStateFlow<String?>(null)
+    private val _uiExtras = MutableStateFlow(UiExtras())
+    private var bannerAutoDismissJob: Job? = null
 
     private data class MonthGridCacheKey(
         val year: Int,
@@ -76,8 +89,8 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         _selectedBsDate,
         eventRepo.allEventsFlow,
         prefsRepo.userSettingsFlow,
-        _statusBanner
-    ) { (year, month), selectedDate, allEvents, settings, banner ->
+        _uiExtras
+    ) { (year, month), selectedDate, allEvents, settings, extras ->
         val todayAd = LocalDate.now()
         val todayBs = BsDateConverter.adToBs(todayAd)
 
@@ -125,7 +138,9 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             eventsByDayInMonth = eventsMap,
             allEvents = allEvents,
             settings = settings,
-            statusBannerMessage = banner
+            statusBannerMessage = extras.statusBanner,
+            undoableDeletedEvent = extras.undoDeletedEvent,
+            pendingBackupImport = extras.pendingBackupImport
         )
     }.stateIn(
         scope = viewModelScope,
@@ -289,8 +304,44 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun onAppResumed() {
+        val nowToday = BsDateConverter.todayBs()
+        if (nowToday != lastKnownTodayBs) {
+            val wasViewingOldTodayMonth =
+                _viewingYearMonth.value == (lastKnownTodayBs.year to lastKnownTodayBs.month)
+            lastKnownTodayBs = nowToday
+            if (wasViewingOldTodayMonth) {
+                _viewingYearMonth.value = nowToday.year to nowToday.month
+                _selectedBsDate.value = null
+            }
+            _uiExtras.update { it.copy(todayTick = it.todayTick + 1L) }
+            viewModelScope.launch(Dispatchers.IO) {
+                MitiPatroWidgetProvider.requestUpdateAll(app)
+                PersistentTodayNotificationManager.sync(app)
+            }
+        }
+    }
+
+    private fun showTransientBanner(message: String, undoEvent: EventEntity? = null, durationMs: Long = 5000L) {
+        bannerAutoDismissJob?.cancel()
+        _uiExtras.update {
+            it.copy(statusBanner = message, undoDeletedEvent = undoEvent)
+        }
+        bannerAutoDismissJob = viewModelScope.launch {
+            delay(durationMs)
+            _uiExtras.update {
+                if (it.statusBanner == message) {
+                    it.copy(statusBanner = null, undoDeletedEvent = null)
+                } else {
+                    it
+                }
+            }
+        }
+    }
+
     fun dismissStatusBanner() {
-        _statusBanner.value = null
+        bannerAutoDismissJob?.cancel()
+        _uiExtras.update { it.copy(statusBanner = null, undoDeletedEvent = null) }
     }
 
     fun saveEvent(event: EventEntity) {
@@ -311,9 +362,9 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                     yearsAhead = settings.googleSyncYearsAhead,
                     useDevanagari = settings.useDevanagari
                 )
-                _statusBanner.value = "Saved & synced $synced yearly BS occurrences to Google Calendar."
+                showTransientBanner("Saved & synced $synced BS occurrence(s) to Google Calendar.")
             }
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
         }
     }
@@ -323,9 +374,20 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             AlarmScheduler.cancelAlarm(app, event.id)
             GoogleCalendarSyncHelper.deleteSyncedOccurrences(app, event.id)
             eventRepo.deleteEvent(event)
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
+            showTransientBanner(
+                message = "Deleted '${event.title}'.",
+                undoEvent = event.copy(id = 0L),
+                durationMs = 7000L
+            )
         }
+    }
+
+    fun undoDeleteEvent() {
+        val toRestore = _uiExtras.value.undoDeletedEvent ?: return
+        dismissStatusBanner()
+        saveEvent(toRestore)
     }
 
     fun exportSingleEventToGoogleCalendar(event: EventEntity) {
@@ -340,7 +402,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                     useDevanagari = settings.useDevanagari
                 )
                 if (count > 0) {
-                    _statusBanner.value = "Synced '$count' yearly BS occurrences of '${event.title}' to Google Calendar."
+                    showTransientBanner("Synced '$count' BS occurrence(s) of '${event.title}' to Google Calendar.")
                     return@launch
                 }
             }
@@ -357,7 +419,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             val settings = uiState.value.settings
             if (!GoogleCalendarSyncHelper.hasCalendarPermissions(app)) {
-                _statusBanner.value = "Calendar permission required to batch-sync events."
+                showTransientBanner("Calendar permission required to batch-sync events.")
                 return@launch
             }
             val events = eventRepo.getAllEventsOnce()
@@ -371,7 +433,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
                     useDevanagari = settings.useDevanagari
                 )
             }
-            _statusBanner.value = "Synced ${events.size} BS events ($totalInserted occurrences) to Google Calendar."
+            showTransientBanner("Synced ${events.size} BS events ($totalInserted occurrences) to Google Calendar.")
         }
     }
 
@@ -380,41 +442,85 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             val settings = uiState.value.settings
             val events = eventRepo.getAllEventsOnce()
             val ok = BackupManager.writeBackupToUri(app, uri, settings, events)
-            _statusBanner.value = if (ok) {
-                "Exported settings and ${events.size} events to JSON."
-            } else {
-                "Failed to export backup file."
-            }
+            showTransientBanner(
+                if (ok) "Exported settings and ${events.size} events to JSON."
+                else "Failed to export backup file."
+            )
         }
     }
 
-    fun importBackupFromUri(uri: Uri) {
+    fun previewBackupFromUri(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             val payload = BackupManager.readBackupFromUri(app, uri)
             if (payload == null) {
-                _statusBanner.value = "Invalid or oversized backup JSON file."
+                showTransientBanner("Invalid or oversized backup JSON file.")
                 return@launch
             }
+            _uiExtras.update { it.copy(pendingBackupImport = payload) }
+        }
+    }
+
+    fun dismissBackupImportPreview() {
+        _uiExtras.update { it.copy(pendingBackupImport = null) }
+    }
+
+    fun confirmBackupImport(merge: Boolean) {
+        val payload = _uiExtras.value.pendingBackupImport ?: return
+        _uiExtras.update { it.copy(pendingBackupImport = null) }
+        viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.restoreAllSettings(payload.settings)
-            val oldEvents = eventRepo.getAllEventsOnce()
-            for (old in oldEvents) {
+            val existing = eventRepo.getAllEventsOnce()
+            val finalEvents = if (merge) {
+                val seen = existing.mapTo(HashSet()) {
+                    listOf(
+                        it.title.trim().lowercase(),
+                        it.bsMonth,
+                        it.bsDay,
+                        it.startBsYear,
+                        it.isShraddha,
+                        it.shraddhaTithi,
+                        it.isRepeating
+                    )
+                }
+                val newOnes = payload.events.filter {
+                    seen.add(
+                        listOf(
+                            it.title.trim().lowercase(),
+                            it.bsMonth,
+                            it.bsDay,
+                            it.startBsYear,
+                            it.isShraddha,
+                            it.shraddhaTithi,
+                            it.isRepeating
+                        )
+                    )
+                }
+                existing + newOnes
+            } else {
+                payload.events
+            }
+
+            for (old in existing) {
                 AlarmScheduler.cancelAlarm(app, old.id)
             }
-            eventRepo.replaceAllEvents(payload.events)
+            eventRepo.replaceAllEvents(finalEvents.map { it.copy(id = 0L) })
             val newEvents = eventRepo.getAllReminderEnabledEvents()
             for (ev in newEvents) {
                 AlarmScheduler.scheduleNextOccurrence(app, ev, payload.settings.missingDayStrategy)
             }
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
-            _statusBanner.value = "Restored settings and ${payload.events.size} events from JSON."
+            showTransientBanner(
+                if (merge) "Merged backup: ${finalEvents.size} total events now saved."
+                else "Restored settings and ${finalEvents.size} events from JSON."
+            )
         }
     }
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
             prefsRepo.setThemeMode(mode)
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
         }
     }
 
@@ -425,7 +531,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
             for (ev in events) {
                 AlarmScheduler.scheduleNextOccurrence(app, ev, strategy)
             }
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
         }
     }
@@ -433,7 +539,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     fun setNepaliScriptMode(mode: NepaliScriptMode) {
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setNepaliScriptMode(mode)
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
         }
     }
@@ -445,7 +551,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     fun setAdDatesInEnglish(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setAdDatesInEnglish(enabled)
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
         }
     }
@@ -457,7 +563,7 @@ class CalendarViewModel(application: Application) : AndroidViewModel(application
     fun setShowPublicFestivals(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             prefsRepo.setShowPublicFestivals(enabled)
-            MitiPatroWidgetProvider.requestUpdate(app)
+            MitiPatroWidgetProvider.requestUpdateAll(app)
             PersistentTodayNotificationManager.sync(app)
         }
     }

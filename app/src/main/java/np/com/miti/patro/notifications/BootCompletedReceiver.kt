@@ -36,7 +36,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                         strategy = settings.missingDayStrategy
                     )
                 }
-                MitiPatroWidgetProvider.requestUpdate(context)
+                MitiPatroWidgetProvider.requestUpdateAll(context)
                 PersistentTodayNotificationManager.sync(context)
             } finally {
                 pendingResult.finish()
